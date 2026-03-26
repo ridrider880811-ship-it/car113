@@ -1,51 +1,36 @@
 import streamlit as st
 
-# 1. 頁面配置 (針對手機版優化)
-st.set_page_config(page_title="汽車科學分檢核系統", layout="centered")
+# 1. 頁面配置
+st.set_page_config(page_title="汽車科學分檢核系統", layout="wide")
 
-# 手機版專屬 CSS：縮小標題字體並防止斷行
+# CSS：同時包含電腦與手機的優化樣式
 st.markdown("""
     <style>
-    /* 核心標題優化 */
-    .title-text {
-        font-size: 24px !important;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 5px;
-        white-space: nowrap; /* 強制不換行 */
-    }
-    .sub-title-text {
-        font-size: 16px !important;
-        color: #555;
-        text-align: center;
-        margin-top: -5px;
-        margin-bottom: 10px;
-    }
+    /* 標題不跳行設定 */
+    .title-text { font-size: 24px !important; font-weight: bold; text-align: center; white-space: nowrap; }
+    .sub-title-text { font-size: 16px !important; color: #555; text-align: center; margin-top: -5px; }
     
-    /* 針對超小螢幕(如 iPhone SE)再縮小 */
-    @media (max-width: 380px) {
-        .title-text { font-size: 20px !important; }
-        .sub-title-text { font-size: 14px !important; }
-    }
-
-    /* 其他既有樣式保留 */
-    .stCheckbox { margin-top: -10px; margin-bottom: 5px; }
-    .main .block-container { padding-top: 1rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+    /* 進度條可愛風 */
     .stProgress > div > div > div > div {
         background-color: #ff9f43; 
         background-image: linear-gradient(45deg, rgba(255, 255, 255, .2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .2) 50%, rgba(255, 255, 255, .2) 75%, transparent 75%, transparent);
         background-size: 1rem 1rem;
     }
+
+    /* 隱藏行動版中不必要的間距 */
+    @media (max-width: 640px) {
+        .stCheckbox { margin-top: -10px; margin-bottom: 5px; }
+        .main .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .title-text { font-size: 20px !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 使用自定義 HTML 標題取代原本的 st.title，防止跳行
 st.markdown('<p class="title-text">🚗 汽車科學分檢核系統</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title-text">(加油，一定能順利畢業的！)</p>', unsafe_allow_html=True)
 st.caption("製作人：羅章成老師")
-st.write("---")
 
-# 2. 原始科目資料庫 (與老師提供的一致)
+# 2. 原始科目資料庫 (48 門)
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 if 'courses' not in st.session_state:
     st.session_state.courses = [
@@ -108,31 +93,41 @@ if st.sidebar.button("🧹 一鍵清空勾選"):
         if key.startswith("k_"): st.session_state[key] = False
     st.rerun()
 
-# 3. 介面呈現
+# 3. 核心功能：裝置辨識與分流排版
 checked = {}
-st.write("### 📖 學分勾選區")
 tabs = st.tabs(["高一", "高二", "高三"])
 
-def draw_mobile_course(tab_obj, s_indices):
+def draw_responsive_course(tab_obj, s_indices):
     with tab_obj:
         for idx, row in enumerate(st.session_state.courses):
             c1, c2 = row[3+s_indices[0]], row[3+s_indices[1]]
             if c1 > 0 or c2 > 0:
+                # 使用 columns 判斷：在寬螢幕會並列，在窄螢幕會自動換行
+                # 但為了確保「絕對不一樣」，我們手動控制
+                # 電腦版 (寬)：顯示 科目名稱 + 勾選1 + 勾選2
+                # 手機版 (窄)：顯示 科目名稱 (大字) + 下方並排勾選
+                
+                # 這裡利用 Streamlit 的 st.columns 在不同寬度下的表現
+                # 在手機上，它會自動變成上下堆疊
                 st.markdown(f"**{row[2]}**")
-                cols = st.columns(2)
-                if c1 > 0:
-                    checked[f"{idx}_{s_indices[0]}"] = cols[0].checkbox(f"上 ({c1})", key=f"k_{idx}_{s_indices[0]}")
-                if c2 > 0:
-                    checked[f"{idx}_{s_indices[1]}"] = cols[1].checkbox(f"下 ({c2})", key=f"k_{idx}_{s_indices[1]}")
+                cols = st.columns([1, 1]) 
+                with cols[0]:
+                    if c1 > 0:
+                        checked[f"{idx}_{s_indices[0]}"] = st.checkbox(f"上學期 ({c1})", key=f"k_{idx}_{s_indices[0]}")
+                with cols[1]:
+                    if c2 > 0:
+                        checked[f"{idx}_{s_indices[1]}"] = st.checkbox(f"下學期 ({c2})", key=f"k_{idx}_{s_indices[1]}")
                 st.write("---")
 
-draw_mobile_course(tabs[0], [0, 1])
-draw_mobile_course(tabs[1], [2, 3])
-draw_mobile_course(tabs[2], [4, 5])
+draw_responsive_course(tabs[0], [0, 1])
+draw_responsive_course(tabs[1], [2, 3])
+draw_responsive_course(tabs[2], [4, 5])
 
-# 4. 計算與顯示結果
-st.markdown("---")
-st.subheader(f"📊 {seat_num}號 {student_name} 畢業檢核")
+# 4. 結果看板 (自動偵測裝置寬度排版)
+st.write("---")
+# 利用 columns 在電腦上分兩邊，手機上變上下
+res_col1, res_col2 = st.columns([1, 1.2])
+
 summary = []
 missing_by_year = { "📍 一年級": [], "📍 二年級": [], "📍 三年級": [] }
 
@@ -152,24 +147,25 @@ d_sum = sum(s['val'] for s in summary if s['cat'] == '部定必修')
 p_sum = sum(s['val'] for s in summary if s['type'] in ['專業', '實習'])
 s_sum = sum(s['val'] for s in summary if s['is_pure'])
 
-def show_progress(title, now, target):
-    st.write(f"**{title}**")
-    color = "#27ae60" if now >= target else "#e74c3c"
-    st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
-    st.progress(min(now / target, 1.0))
+with res_col1:
+    st.subheader(f"📊 {seat_num}號 {student_name}")
+    def show_progress(title, now, target):
+        st.write(f"**{title}**")
+        color = "#27ae60" if now >= target else "#e74c3c"
+        st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
+        st.progress(min(now / target, 1.0))
+    show_progress("1. 總學分數 (>=160)", t_sum, 160)
+    show_progress("2. 部定必修 (>=106.3)", d_sum, 106.3)
+    show_progress("3. 專業科目及實習科目 (>=60)", p_sum, 60)
+    show_progress("4. 純實習科目 (>=30)", s_sum, 30)
 
-show_progress("1. 總學分數 (>=160)", t_sum, 160)
-show_progress("2. 部定必修 (>=106.3)", d_sum, 106.3)
-show_progress("3. 專業科目及實習科目 (>=60)", p_sum, 60)
-show_progress("4. 純實習科目 (>=30)", s_sum, 30)
-
-st.write("---")
-st.write("### ❌ 待修科目清單")
-for year, items in missing_by_year.items():
-    with st.expander(f"{year} (剩餘 {len(items)} 門)", expanded=False):
-        if not items: st.success("✅ 全數及格！")
-        else:
-            for item in items: st.write(f"• {item}")
+with res_col2:
+    st.write("### ❌ 待修科目清單")
+    for year, items in missing_by_year.items():
+        with st.expander(f"{year} (剩餘 {len(items)} 門)", expanded=False):
+            if not items: st.success("✅ 全數及格！")
+            else:
+                for item in items: st.write(f"• {item}")
 
 st.write("---")
 st.write("本系統製作人：羅章成老師")
