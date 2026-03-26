@@ -15,10 +15,12 @@ st.markdown("""
         background-image: linear-gradient(45deg, rgba(255, 255, 255, .2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .2) 50%, rgba(255, 255, 255, .2) 75%, transparent 75%, transparent);
         background-size: 1rem 1rem;
     }
+    .missing-year-header { color: #e74c3c; font-weight: bold; margin-top: 10px; border-bottom: 1px solid #ffcccc; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🚗 汽車科學分檢核系統")
+st.subheader("加油，一定能順利畢業的！")
 st.caption("製作人：羅章成老師")
 st.write("---")
 
@@ -120,7 +122,8 @@ with col_status:
     st.subheader(f"📊 {seat_num}號 {student_name} 的檢核表")
     
     summary = []
-    missing_items = []
+    # 分年級儲存待修科目
+    missing_by_year = { "一年級": [], "二年級": [], "三年級": [] }
     
     for idx, row in enumerate(st.session_state.courses):
         earned_row = 0
@@ -130,7 +133,9 @@ with col_status:
                 if checked.get(f"{idx}_{s}", False):
                     earned_row += c_val
                 else:
-                    missing_items.append(f"{sem_names[s]} {row[2]} ({c_val}學分)")
+                    # 判斷學年歸類
+                    year_label = "一年級" if s < 2 else ("二年級" if s < 4 else "三年級")
+                    missing_by_year[year_label].append(f"{sem_names[s]} {row[2]} ({c_val}學分)")
         
         summary.append({'cat': row[0], 'type': row[1], 'val': earned_row, 'is_pure': row[9]})
 
@@ -152,12 +157,21 @@ with col_status:
     show_progress("3. 專業及實習科目 (門檻 60)", p_sum, 60)
     show_progress("4. 純實習科目 (門檻 30)", s_sum, 30)
 
-    with st.expander("❌ 待修科目詳細清單", expanded=True):
-        if not missing_items:
+    with st.expander("❌ 待修科目明細 (依年級區分)", expanded=True):
+        total_missing = sum(len(v) for v in missing_by_year.values())
+        if total_missing == 0:
             st.success("🎉 太棒了！目前勾選科目皆已及格！")
         else:
-            for item in missing_items:
-                st.write(f"• {item}")
+            for year, items in missing_by_year.items():
+                st.markdown(f"<div class='missing-year-header'>📍 {year}</div>", unsafe_allow_html=True)
+                if not items:
+                    st.write("✅ 本學年科目全數及格")
+                else:
+                    for item in items:
+                        st.write(f"• {item}")
+
+    st.write("---")
+    st.write("本系統製作人：羅章成老師")
 
     if t_sum >= 160 and d_sum >= 106.3 and p_sum >= 60 and s_sum >= 30:
         st.balloons()
