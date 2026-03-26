@@ -155,10 +155,10 @@ with col_status:
         st.write("")
 
     st.write("### 📊 畢業檢核看板")
-    show_m("1. 總學分 (>=160)", t_val, 160)
-    show_m("2. 部定必修 (>=106.3)", d_val, 106.3)
-    show_m("3. 專業及實習 (>=60)", p_val, 60)
-    show_m("4. 純實習 (>=30)", s_val, 30)
+    show_m("1. 總學分 (要超過160學分)", t_val, 160)
+    show_m("2. 部定必修 (要超過106.3學分)", d_val, 106.3)
+    show_m("3. 專業課目及實習科目 (要超過60學分)", p_val, 60)
+    show_m("4. 純實習科目 (要超過30學分)", s_val, 30)
 
     with st.expander("❌ 待修科目清單", expanded=True):
         if not missing_list:
