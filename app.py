@@ -3,19 +3,25 @@ import streamlit as st
 # 1. 頁面配置
 st.set_page_config(page_title="汽車科學分檢核系統", layout="wide")
 
-# CSS 樣式：橘色可愛風進度條與緊湊版面
+# 手機版面優化 CSS
 st.markdown("""
     <style>
-    .stCheckbox { margin-bottom: -15px; }
-    .main .block-container { padding-top: 1.5rem; }
-    div[data-testid="stExpander"] { border: 1px solid #ff4b4b; border-radius: 8px; background-color: #fffaf0; }
-    /* 進度條顏色 */
+    /* 縮小手機端間距 */
+    .stCheckbox { margin-bottom: -18px; }
+    .main .block-container { padding-top: 1rem; padding-left: 1rem; padding-right: 1rem; }
+    
+    /* 進度條可愛風樣式 */
     .stProgress > div > div > div > div {
         background-color: #ff9f43; 
         background-image: linear-gradient(45deg, rgba(255, 255, 255, .2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .2) 50%, rgba(255, 255, 255, .2) 75%, transparent 75%, transparent);
         background-size: 1rem 1rem;
     }
-    .missing-year-header { color: #e74c3c; font-weight: bold; margin-top: 10px; border-bottom: 1px solid #ffcccc; }
+
+    /* 調整字體大小以符合手機閱讀 */
+    @media (max-width: 640px) {
+        .stMarkdown div p { font-size: 14px; }
+        h3 { font-size: 18px !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,9 +41,8 @@ if st.sidebar.button("🧹 一鍵清空勾選"):
             st.session_state[key] = False
     st.rerun()
 
-# 2. 原始科目資料庫 (48 門科目)
+# 2. 原始科目資料庫 (48 門)
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
-
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -91,7 +96,7 @@ if 'courses' not in st.session_state:
     ]
 
 # 3. 介面佈局
-col_input, col_status = st.columns([1.8, 1.2])
+col_input, col_status = st.columns([1.6, 1.4])
 
 checked = {}
 with col_input:
@@ -100,14 +105,14 @@ with col_input:
     
     def draw_semester(tab_obj, s_indices, label):
         with tab_obj:
-            h = st.columns([3, 1, 1])
-            h[0].write("**科目名稱**")
-            h[1].write(f"**{label}上**")
-            h[2].write(f"**{label}下**")
+            h = st.columns([2.5, 1, 1])
+            h[0].write("**科目**")
+            h[1].write("**上**")
+            h[2].write("**下**")
             for idx, row in enumerate(st.session_state.courses):
                 c1, c2 = row[3+s_indices[0]], row[3+s_indices[1]]
                 if c1 > 0 or c2 > 0:
-                    cols = st.columns([3, 1, 1])
+                    cols = st.columns([2.5, 1, 1])
                     cols[0].write(f"{row[2]}")
                     k1, k2 = f"k_{idx}_{s_indices[0]}", f"k_{idx}_{s_indices[1]}"
                     checked[f"{idx}_{s_indices[0]}"] = cols[1].checkbox(f"{c1}", key=k1) if c1 > 0 else False
@@ -119,11 +124,10 @@ with col_input:
 
 # 4. 計算與顯示結果
 with col_status:
-    st.subheader(f"📊 {seat_num}號 {student_name} 的檢核表")
+    st.subheader(f"📊 {seat_num}號 {student_name}")
     
     summary = []
-    # 分年級儲存待修科目
-    missing_by_year = { "一年級": [], "二年級": [], "三年級": [] }
+    missing_by_year = { "📍 一年級": [], "📍 二年級": [], "📍 三年級": [] }
     
     for idx, row in enumerate(st.session_state.courses):
         earned_row = 0
@@ -133,13 +137,12 @@ with col_status:
                 if checked.get(f"{idx}_{s}", False):
                     earned_row += c_val
                 else:
-                    # 判斷學年歸類
-                    year_label = "一年級" if s < 2 else ("二年級" if s < 4 else "三年級")
-                    missing_by_year[year_label].append(f"{sem_names[s]} {row[2]} ({c_val}學分)")
+                    year_key = "📍 一年級" if s < 2 else ("📍 二年級" if s < 4 else "📍 三年級")
+                    missing_by_year[year_key].append(f"{sem_names[s]} {row[2]} ({c_val})")
         
         summary.append({'cat': row[0], 'type': row[1], 'val': earned_row, 'is_pure': row[9]})
 
-    # 計算門檻
+    # 指標計算
     t_sum = sum(s['val'] for s in summary)
     d_sum = sum(s['val'] for s in summary if s['cat'] == '部定必修')
     p_sum = sum(s['val'] for s in summary if s['type'] in ['專業', '實習'])
@@ -152,23 +155,20 @@ with col_status:
         st.progress(min(now / target, 1.0))
         st.write("")
 
-    show_progress("1. 總學分 (門檻 160)", t_sum, 160)
-    show_progress("2. 部定必修 (門檻 106.3)", d_sum, 106.3)
-    show_progress("3. 專業及實習科目 (門檻 60)", p_sum, 60)
-    show_progress("4. 純實習科目 (門檻 30)", s_sum, 30)
+    st.write("### 畢業進度看板")
+    show_progress("1. 總學分 (>=160)", t_sum, 160)
+    show_progress("2. 部定必修 (>=106.3)", d_sum, 106.3)
+    show_progress("3. 專業及實習 (>=60)", p_sum, 60)
+    show_progress("4. 純實習科目 (>=30)", s_sum, 30)
 
-    with st.expander("❌ 待修科目明細 (依年級區分)", expanded=True):
-        total_missing = sum(len(v) for v in missing_by_year.values())
-        if total_missing == 0:
-            st.success("🎉 太棒了！目前勾選科目皆已及格！")
-        else:
-            for year, items in missing_by_year.items():
-                st.markdown(f"<div class='missing-year-header'>📍 {year}</div>", unsafe_allow_html=True)
-                if not items:
-                    st.write("✅ 本學年科目全數及格")
-                else:
-                    for item in items:
-                        st.write(f"• {item}")
+    st.write("### ❌ 待修科目明細 (點開查看)")
+    for year, items in missing_by_year.items():
+        with st.expander(f"{year} (剩餘 {len(items)} 門)", expanded=False):
+            if not items:
+                st.success("✅ 本學年科目已全數及格！")
+            else:
+                for item in items:
+                    st.write(f"• {item}")
 
     st.write("---")
     st.write("本系統製作人：羅章成老師")
