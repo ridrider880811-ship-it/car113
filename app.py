@@ -1,14 +1,22 @@
 import streamlit as st
 
+# 1. 頁面配置
 st.set_page_config(page_title="114汽車二甲畢業檢核", layout="wide")
-st.title("🚗 汽車科 113 課綱畢業門檻 - 專業檢核系統")
-st.info("請對照成績單，在及格的學分空格打勾。系統會自動計算四大畢業門檻。")
+st.markdown("""
+    <style>
+    .stCheckbox { margin-bottom: -15px; }
+    .main .block-container { padding-top: 2rem; }
+    div[data-testid="stExpander"] { border: 1px solid #ff4b4b; border-radius: 5px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# 1. 完整科目資料庫：嚴格依照 Excel 表格順序
-# 格式：[類別, 性質, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
+st.title("🚗 汽車科 113 課綱畢業門檻檢核")
+st.info("請切換「高一/高二/高三」分頁勾選及格科目。右側會自動列出「待修科目」。")
+
+# 2. 原始科目資料庫 (嚴格對照老師提供之清單，共 48 門)
 if 'courses' not in st.session_state:
     st.session_state.courses = [
-        # --- 部定必修 (一般科目) ---
+        # --- 部定必修 (一般) ---
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學', 4, 4, 0, 0, 0, 0, False],
@@ -25,7 +33,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '一般', '體育', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '全民國防教育', 1, 1, 0, 0, 0, 0, False],
         ['部定必修', '一般', '本土語/台灣手語', 0, 0, 0, 2, 0, 0, False],
-        # --- 部定必修 (專業/實習科目) ---
+        # --- 部定必修 (專業/實習) ---
         ['部定必修', '專業', '應用力學', 0, 0, 2, 0, 0, 0, False],
         ['部定必修', '專業', '機件原理', 0, 0, 2, 0, 0, 0, False],
         ['部定必修', '專業', '引擎原理', 3, 0, 0, 0, 0, 0, False],
@@ -60,56 +68,83 @@ if 'courses' not in st.session_state:
         ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
         ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 0, 3, False],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
-
-        
     ]
 
-# 2. 顯示與計算邏輯
-col_main, col_res = st.columns([3, 1])
+# 3. 介面佈局
+col_input, col_status = st.columns([2, 1])
 
-with col_main:
-    st.write("### 📂 課程學分清單")
-    # 建立表頭
-    h = st.columns([2, 1, 1, 1, 1, 1, 1])
-    h[0].write("**科目名稱**")
-    for i, name in enumerate(["一上", "一下", "二上", "二下", "三上", "三下"]):
-        h[i+1].write(f"**{name}**")
+with col_input:
+    st.write("### 📖 學期學分勾選清單")
+    t1, t2, t3 = st.tabs(["高一", "高二", "高三"])
     
-    final_stats = []
-    for row_idx, row in enumerate(st.session_state.courses):
-        cols = st.columns([2, 1, 1, 1, 1, 1, 1])
-        cols[0].write(f"{row[2]}") # 科目名
-        
-        row_total = 0
+    # 用於儲存勾選狀態的字典
+    checked = {}
+
+    def draw_tab(tab, s_indices, label):
+        with tab:
+            h = st.columns([3, 1, 1])
+            h[0].write("**科目名稱**")
+            h[1].write(f"**{label}上**")
+            h[2].write(f"**{label}下**")
+            for idx, row in enumerate(st.session_state.courses):
+                c1, c2 = row[3+s_indices[0]], row[3+s_indices[1]]
+                if c1 > 0 or c2 > 0:
+                    cols = st.columns([3, 1, 1])
+                    cols[0].write(f"{row[2]}")
+                    # 建立唯一的 Key 確保計算不重疊
+                    checked[f"{idx}_{s_indices[0]}"] = cols[1].checkbox(f"{c1}", key=f"k_{idx}_{s_indices[0]}") if c1 > 0 else False
+                    checked[f"{idx}_{s_indices[1]}"] = cols[2].checkbox(f"{c2}", key=f"k_{idx}_{s_indices[1]}") if c2 > 0 else False
+
+    draw_tab(t1, [0, 1], "高一")
+    draw_tab(t2, [2, 3], "高二")
+    draw_tab(t3, [4, 5], "高三")
+
+# 4. 計算與顯示結果
+with col_status:
+    st.write("### 📊 畢業門檻看板")
+    
+    summary = []
+    missing_list = []
+    
+    for idx, row in enumerate(st.session_state.courses):
+        earned = 0
+        missing = 0
         for s in range(6):
-            credit = row[3+s]
-            if credit > 0:
-                # 每個勾選框代表該學期的學分
-                if cols[s+1].checkbox(f"{credit}", key=f"c_{row_idx}_{s}"):
-                    row_total += credit
-            else:
-                cols[s+1].write("-")
+            c_val = row[3+s]
+            if c_val > 0:
+                if checked.get(f"{idx}_{s}", False):
+                    earned += c_val
+                else:
+                    missing += c_val
         
-        final_stats.append({'cat': row[0], 'type': row[1], 'credit': row_total, 'is_pure': row[9]})
+        summary.append({'cat': row[0], 'type': row[1], 'val': earned, 'is_pure': row[9]})
+        if missing > 0:
+            missing_list.append(f"{row[2]} (欠 {missing} 學分)")
 
-with col_res:
-    st.write("### 📊 畢業檢核")
-    # 計算各項數值
-    t_val = sum(x['credit'] for x in final_stats)
-    d_val = sum(x['credit'] for x in final_stats if x['cat'] == '部定必修')
-    p_val = sum(x['credit'] for x in final_stats if x['type'] in ['專業', '實習'])
-    s_val = sum(x['credit'] for x in final_stats if x['is_pure'])
+    # 四大指標計算
+    t_val = sum(s['val'] for s in summary)
+    d_val = sum(s['val'] for s in summary if s['cat'] == '部定必修')
+    p_val = sum(s['val'] for s in summary if s['type'] in ['專業', '實習'])
+    s_val = sum(s['val'] for s in summary if s['is_pure'])
 
-    def show_metric(name, val, target):
-        st.write(f"**{name}**")
-        color = "green" if val >= target else "red"
-        st.markdown(f"<h3 style='color:{color}'>{val} / {target}</h3>", unsafe_allow_html=True)
-        st.progress(min(val/target, 1.0))
+    def show_m(title, now, target):
+        st.write(f"**{title}**")
+        color = "green" if now >= target else "red"
+        st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
+        st.progress(min(now/target, 1.0))
+        st.write("")
 
-    show_metric("1. 總學分 (>=160)", t_val, 160)
-    show_metric("2. 部定必修 (>=106)", d_val, 106.3) # 125 * 85%
-    show_metric("3. 專業及實習 (>=60)", p_val, 60)
-    show_metric("4. 純實習 (>=30)", s_val, 30)
+    show_m("1. 總學分 (>=160)", t_val, 160)
+    show_m("2. 部定必修 (>=106.3)", d_val, 106.3)
+    show_m("3. 專業及實習 (>=60)", p_val, 60)
+    show_m("4. 純實習 (>=30)", s_val, 30)
+
+    with st.expander("❌ 待修科目明細", expanded=True):
+        if not missing_list:
+            st.success("全部科目皆已及格！")
+        else:
+            for m in missing_list:
+                st.write(f"- {m}")
 
     if t_val >= 160 and d_val >= 106.3 and p_val >= 60 and s_val >= 30:
         st.balloons()
