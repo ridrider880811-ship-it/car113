@@ -7,7 +7,7 @@ from PIL import Image
 # 1. 頁面配置
 st.set_page_config(page_title="汽車科學分檢核系統", layout="centered")
 
-# CSS 樣式：手機版優化 + 橘色可愛風進度條
+# CSS 樣式修正：解決手機跳行與進度條顏色
 st.markdown("""
     <style>
     .title-text { font-size: 24px !important; font-weight: bold; text-align: center; white-space: nowrap; }
@@ -28,7 +28,7 @@ st.markdown('<p class="sub-title-text">(加油，一定能順利畢業的！)</p
 st.caption("製作人：羅章成老師")
 st.write("---")
 
-# 2. 原始科目資料庫 (與老師提供的一致)
+# 2. 原始科目資料庫 (48 門)
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 if 'courses' not in st.session_state:
     st.session_state.courses = [
@@ -82,41 +82,37 @@ if 'courses' not in st.session_state:
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
     ]
 
-# 3. 側邊欄：AI 辨識功能
+# 3. 側邊欄：AI OCR 辨識
 st.sidebar.header("📸 AI 成績單辨識")
 uploaded_file = st.sidebar.file_uploader("上傳成績截圖", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
-    with st.spinner('AI 正在強化辨識中...'):
-        image = Image.open(uploaded_file)
-        img_np = np.array(image)
-        
-        # 影像強化：轉灰階 + 二值化，提升辨識率
-        gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-        thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-        
-        reader = easyocr.Reader(['ch_tra', 'en'])
-        result = reader.readtext(thresh)
-        recognized_text = "".join([res[1] for res in result])
-        
-        # 遍歷科目並進行匹配
-        for idx, row in enumerate(st.session_state.courses):
-            subject = row[2]
-            # 只要科目名稱出現在圖中，就勾選對應的學期
-            if subject in recognized_text or subject[:2] in recognized_text:
-                for s in range(6):
-                    if row[3+s] > 0:
-                        st.session_state[f"k_{idx}_{s}"] = True
-        st.sidebar.success("辨識勾選完成！")
+    if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
+        with st.spinner('AI 正在讀取成績...'):
+            image = Image.open(uploaded_file)
+            img_np = np.array(image)
+            reader = easyocr.Reader(['ch_tra', 'en'])
+            result = reader.readtext(img_np)
+            recognized_text = "".join([res[1] for res in result])
+            
+            # 遍歷科目並進行匹配
+            for idx, row in enumerate(st.session_state.courses):
+                subject = row[2]
+                if subject[:2] in recognized_text:
+                    for s in range(6):
+                        if row[3+s] > 0:
+                            st.session_state[f"k_{idx}_{s}"] = True
+            st.session_state.last_uploaded = uploaded_file.name
+            st.rerun() # 強制刷新確保畫面勾選
 
 seat_num = st.sidebar.text_input("座號", "01")
 student_name = st.sidebar.text_input("姓名", "學生姓名")
-if st.sidebar.button("🧹 清空所有勾選"):
+if st.sidebar.button("🧹 清空勾選"):
     for key in list(st.session_state.keys()):
         if key.startswith("k_"): st.session_state[key] = False
     st.rerun()
 
-# 4. 學分勾選介面 (Tabs)
+# 4. 學分勾選介面
 st.write("### 📖 學分勾選區")
 tabs = st.tabs(["高一", "高二", "高三"])
 
@@ -129,18 +125,19 @@ def draw_mobile_course(tab_obj, s_indices):
                 cols = st.columns(2)
                 k1, k2 = f"k_{idx}_{s_indices[0]}", f"k_{idx}_{s_indices[1]}"
                 
+                # 初始狀態設定
                 if k1 not in st.session_state: st.session_state[k1] = False
                 if k2 not in st.session_state: st.session_state[k2] = False
                 
-                if c1 > 0: cols[0].checkbox(f"上學期 ({c1})", key=k1)
-                if c2 > 0: cols[1].checkbox(f"下學期 ({c2})", key=k2)
+                if c1 > 0: cols[0].checkbox(f"上 ({c1})", key=k1)
+                if c2 > 0: cols[1].checkbox(f"下 ({c2})", key=k2)
                 st.write("---")
 
 draw_mobile_course(tabs[0], [0, 1])
 draw_mobile_course(tabs[1], [2, 3])
 draw_mobile_course(tabs[2], [4, 5])
 
-# 5. 計算畢業指標看板
+# 5. 計算畢業指標與顯示結果
 st.markdown("---")
 st.subheader(f"📊 {seat_num}號 {student_name} 畢業檢核")
 
