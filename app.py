@@ -28,7 +28,7 @@ st.markdown('<p class="sub-title-text">(加油，一定能順利畢業的！)</p
 st.caption("製作人：羅章成老師")
 st.write("---")
 
-# 2. 原始科目資料庫 (48 門)
+# 2. 原始科目資料庫
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 if 'courses' not in st.session_state:
     st.session_state.courses = [
@@ -82,41 +82,40 @@ if 'courses' not in st.session_state:
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
     ]
 
-# 3. 側邊欄：AI OCR 辨識
+# 3. 側邊欄：AI 辨識功能 (強化邏輯)
 st.sidebar.header("📸 AI 成績單辨識")
 uploaded_file = st.sidebar.file_uploader("上傳成績截圖", type=["png", "jpg", "jpeg"])
 
-if uploaded_file is not None:
-    if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
-        with st.spinner('AI 正在讀取成績...'):
-            image = Image.open(uploaded_file)
-            img_np = np.array(image)
+if uploaded_file:
+    if 'last_file' not in st.session_state or st.session_state.last_file != uploaded_file.name:
+        with st.spinner('AI 正在讀取...'):
+            img = Image.open(uploaded_file)
             reader = easyocr.Reader(['ch_tra', 'en'])
-            result = reader.readtext(img_np)
-            recognized_text = "".join([res[1] for res in result])
+            result = reader.readtext(np.array(img))
+            raw_text = "".join([res[1] for res in result])
             
-            # 遍歷科目並進行匹配
             for idx, row in enumerate(st.session_state.courses):
-                subject = row[2]
-                if subject[:2] in recognized_text:
+                name = row[2]
+                # 模糊比對：只要科目名稱的前兩個字出現在圖中，就當作及格
+                if name[:2] in raw_text:
                     for s in range(6):
                         if row[3+s] > 0:
                             st.session_state[f"k_{idx}_{s}"] = True
-            st.session_state.last_uploaded = uploaded_file.name
-            st.rerun() # 強制刷新確保畫面勾選
+            st.session_state.last_file = uploaded_file.name
+            st.rerun()
 
 seat_num = st.sidebar.text_input("座號", "01")
 student_name = st.sidebar.text_input("姓名", "學生姓名")
-if st.sidebar.button("🧹 清空勾選"):
-    for key in list(st.session_state.keys()):
-        if key.startswith("k_"): st.session_state[key] = False
+if st.sidebar.button("🧹 一鍵清空"):
+    for k in list(st.session_state.keys()):
+        if k.startswith("k_"): st.session_state[k] = False
     st.rerun()
 
-# 4. 學分勾選介面
+# 4. 學分勾選區 (Tabs)
 st.write("### 📖 學分勾選區")
 tabs = st.tabs(["高一", "高二", "高三"])
 
-def draw_mobile_course(tab_obj, s_indices):
+def draw_tab(tab_obj, s_indices):
     with tab_obj:
         for idx, row in enumerate(st.session_state.courses):
             c1, c2 = row[3+s_indices[0]], row[3+s_indices[1]]
@@ -124,64 +123,63 @@ def draw_mobile_course(tab_obj, s_indices):
                 st.markdown(f"**{row[2]}**")
                 cols = st.columns(2)
                 k1, k2 = f"k_{idx}_{s_indices[0]}", f"k_{idx}_{s_indices[1]}"
-                
-                # 初始狀態設定
                 if k1 not in st.session_state: st.session_state[k1] = False
                 if k2 not in st.session_state: st.session_state[k2] = False
                 
-                if c1 > 0: cols[0].checkbox(f"上 ({c1})", key=k1)
-                if c2 > 0: cols[1].checkbox(f"下 ({c2})", key=k2)
+                # 強制連動 Session State
+                cols[0].checkbox(f"上 ({c1})", key=k1) if c1 > 0 else None
+                cols[1].checkbox(f"下 ({c2})", key=k2) if c2 > 0 else None
                 st.write("---")
 
-draw_mobile_course(tabs[0], [0, 1])
-draw_mobile_course(tabs[1], [2, 3])
-draw_mobile_course(tabs[2], [4, 5])
+draw_tab(tabs[0], [0, 1])
+draw_tab(tabs[1], [2, 3])
+draw_tab(tabs[2], [4, 5])
 
-# 5. 計算畢業指標與顯示結果
+# 5. 計算畢業看板 (確保 100% 同步)
 st.markdown("---")
-st.subheader(f"📊 {seat_num}號 {student_name} 畢業檢核")
+st.subheader(f"📊 {seat_num} 號 {student_name} 檢核結果")
 
-summary = []
-missing_by_year = { "📍 一年級": [], "📍 二年級": [], "📍 三年級": [] }
+res_list = []
+missing = { "一": [], "二": [], "三": [] }
 
 for idx, row in enumerate(st.session_state.courses):
-    earned_row = 0
+    e_row = 0
     for s in range(6):
-        c_val = row[3+s]
-        if c_val > 0:
+        val = row[3+s]
+        if val > 0:
             if st.session_state.get(f"k_{idx}_{s}", False):
-                earned_row += c_val
+                e_row += val
             else:
-                y_key = "📍 一年級" if s < 2 else ("📍 二年級" if s < 4 else "📍 三年級")
-                missing_by_year[y_key].append(f"{sem_names[s]} {row[2]} ({c_val})")
-    summary.append({'cat': row[0], 'type': row[1], 'val': earned_row, 'is_pure': row[9]})
+                y = "一" if s < 2 else ("二" if s < 4 else "三")
+                missing[y].append(f"{sem_names[s]} {row[2]} ({val})")
+    res_list.append({'cat': row[0], 'type': row[1], 'val': e_row, 'is_pure': row[9]})
 
-t_sum = sum(s['val'] for s in summary)
-d_sum = sum(s['val'] for s in summary if s['cat'] == '部定必修')
-p_sum = sum(s['val'] for s in summary if s['type'] in ['專業', '實習'])
-s_sum = sum(s['val'] for s in summary if s['is_pure'])
+t_s = sum(x['val'] for x in res_list)
+d_s = sum(x['val'] for x in res_list if x['cat'] == '部定必修')
+p_s = sum(x['val'] for x in res_list if x['type'] in ['專業', '實習'])
+s_s = sum(x['val'] for x in res_list if x['is_pure'])
 
-def show_progress(title, now, target):
-    st.write(f"**{title}**")
-    color = "#27ae60" if now >= target else "#e74c3c"
-    st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
-    st.progress(min(now / target, 1.0))
+def bar(t, n, g):
+    st.write(f"**{t}**")
+    c = "#27ae60" if n >= g else "#e74c3c"
+    st.markdown(f"<h3 style='color:{c}; margin:0;'>{n} / {g}</h3>", unsafe_allow_html=True)
+    st.progress(min(n/g, 1.0))
 
-show_progress("1. 總學分 (>=160)", t_sum, 160)
-show_progress("2. 部定必修 (>=106.3)", d_sum, 106.3)
-show_progress("3. 專業及實習 (>=60)", p_sum, 60)
-show_progress("4. 純實習科目 (>=30)", s_sum, 30)
+bar("1. 總學分 (>=160)", t_s, 160)
+bar("2. 部定必修 (>=106.3)", d_s, 106.3)
+bar("3. 專業及實習 (>=60)", p_s, 60)
+bar("4. 純實習 (>=30)", s_s, 30)
 
 st.write("---")
-st.write("### ❌ 待修科目明細")
-for year, items in missing_by_year.items():
-    with st.expander(f"{year} (剩餘 {len(items)} 門)", expanded=False):
-        if not items: st.success("✅ 全數及格！")
+st.write("### ❌ 待修明細")
+for y, items in missing.items():
+    with st.expander(f"{y}年級 (剩 {len(items)} 門)", expanded=False):
+        if not items: st.success("全過！")
         else:
-            for item in items: st.write(f"• {item}")
+            for i in items: st.write(f"• {i}")
 
 st.write("---")
-st.write("本系統製作人：羅章成老師")
+st.write("製作人：羅章成老師")
 
-if t_sum >= 160 and d_sum >= 106.3 and p_sum >= 60 and s_sum >= 30:
-    st.balloons(); st.success("🏁 恭喜達成畢業門檻！")
+if t_s >= 160 and d_s >= 106.3 and p_s >= 60 and s_s >= 30:
+    st.balloons(); st.success("🎓 准予畢業！")
