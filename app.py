@@ -88,7 +88,7 @@ if 'courses' not in st.session_state:
     ]
 
 # 3. 側邊欄 AI 辨識
-st.sidebar.header("📸 AI 成績辨識")
+st.sidebar.header("📸 AI 學分辨識")
 uploaded_file = st.sidebar.file_uploader("上傳成績截圖", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
@@ -169,10 +169,10 @@ def bar(title, now, target):
     st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
     st.progress(min(now/target, 1.0))
 
-bar("1. 總學分 (>=160)", t_sum, 160)
+bar("1. 總學分數 (>=160)", t_sum, 160)
 bar("2. 部定必修 (>=106.3)", d_sum, 106.3)
-bar("3. 專業及實習 (>=60)", p_sum, 60)
-bar("4. 純實習 (>=30)", s_sum, 30)
+bar("3. 專業科目及實習科目 (>=60)", p_sum, 60)
+bar("4. 純實習科目 (>=30)", s_sum, 30)
 
 st.write("---")
 st.write("### ❌ 待修明細")
