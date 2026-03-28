@@ -25,11 +25,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
-st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
+st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113 課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格鎖定) ---
+# --- 2. 核心資料庫 (113 課綱最終校對科目) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
+        # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
@@ -57,18 +58,35 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
         ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True],
+        ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
+        ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
+        ['部定必修', '實習', '車輛空調檢修實習', 0, 0, 0, 0, 3, 0, True],
+        ['部定必修', '實習', '車身電器系統綜合檢修實習', 0, 0, 0, 0, 4, 0, True],
         ['校訂必修', '一般', '數學 (校訂必修)', 0, 0, 4, 4, 2, 2, False],
         ['校訂必修', '一般', '青少年身心健康管理', 0, 0, 2, 0, 0, 0, False],
         ['校訂必修', '一般', '計算機概論', 2, 0, 0, 0, 0, 0, False],
         ['校訂必修', '一般', '閱讀與寫作', 0, 0, 0, 0, 1, 1, False],
+        ['校訂必修', '專業', '汽車工業英文', 0, 0, 0, 0, 0, 2, False],
+        ['校訂必修', '專業', '電動車概論', 0, 0, 0, 2, 0, 0, False],
+        ['校訂必修', '實習', '專題實作', 0, 0, 0, 0, 2, 2, True],
+        ['校訂必修', '實習', '訊號量測與分析實習', 0, 0, 0, 0, 2, 2, True],
+        ['校訂必修', '實習', '電動機車實習', 0, 0, 0, 0, 0, 2, True],
         ['校訂選修', '一般', '兵家的智慧', 0, 0, 1, 0, 0, 0, False],
-        ['校訂選修', '實習', '汽車檢檢習', 0, 0, 2, 0, 4, 0, True],
+        ['校訂選修', '一般', '野外求生', 0, 0, 0, 1, 0, 0, False],
+        ['校訂選修', '一般', '數學演習', 0, 0, 0, 0, 2, 2, False],
+        ['校訂選修', '專業', '交通安全與法規', 0, 0, 0, 0, 1, 0, False],
+        ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
+        ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 3, 0, False],
+        ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 0, 4, 0, True],
+        ['校訂選修', '實習', '汽車定期保養實習', 0, 0, 0, 0, 4, 0, True],
+        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 0, 4, True],
+        ['校訂選修', '實習', '汽車美容實務', 0, 0, 0, 0, 0, 3, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄 ---
+# --- 3. 側邊欄與解析 ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
     if st.button("🧹 重置所有勾選"):
@@ -81,32 +99,26 @@ with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
     if st.button("🚀 開始偵測"):
         if paste_txt:
-            # 關鍵鎖定：偵測林浩宇或茂鈞二上資料特徵
-            txt_clean = paste_txt.replace(" ","").replace("\xa0","")
-            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_clean or "實得學分320" in txt_clean)
+            txt_cl = paste_txt.replace(" ","").replace("\xa0","")
+            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
             
             lines = paste_txt.split('\n')
             for line in lines:
+                l_cl = line.replace(" ","").replace("\xa0","")
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in line:
-                        # 找及格成績 (>=60)
-                        nums = re.findall(r"\d{2,3}", line)
-                        valid_scores = [int(n) for n in nums if int(n) >= 60]
+                        match_s = re.findall(r"(?:必修|選修)\d(\d{1,3})", l_cl)
                         
                         if "一年級" in paste_txt:
-                            # 簡單判定：上學期位置有及格分
-                            if row[3]>0 and len(valid_scores) >= 1: st.session_state[f"k_{idx}_0_Y1"] = True
-                            if row[4]>0 and len(valid_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                            if row[3]>0 and len(match_s)>=1 and int(match_s[0])>=60:
+                                st.session_state[f"k_{idx}_0_Y1"] = True
+                            if row[4]>0 and len(match_s)>=2 and int(match_s[1])>=60:
+                                st.session_state[f"k_{idx}_1_Y1"] = True
                         
                         if "二年級" in paste_txt:
-                            # 勾二上：該行必須有及格分且該科目屬性（必修/選修）後接的是及格數字
-                            if row[5]>0 and len(valid_scores) >= 1:
-                                # 二次確認及格分真的在及格區間
-                                if re.search(r"(?:必修|選修)\s*\d\s*([6-9]\d|100)", line):
-                                    st.session_state[f"k_{idx}_2_Y2"] = True
-                            
-                            # 勾二下：強制攔截
-                            if not is_y2_s1_only and row[6]>0 and len(valid_scores) >= 2:
+                            if row[5]>0 and len(match_s)>=1 and int(match_s[0])>=60:
+                                st.session_state[f"k_{idx}_2_Y2"] = True
+                            if not is_y2_s1_only and row[6]>0 and len(match_s)>=2 and int(match_s[1])>=60:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
@@ -130,7 +142,7 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 5. 統計看板 ---
+# --- 5. 數據看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
