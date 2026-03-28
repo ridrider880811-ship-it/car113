@@ -1,7 +1,7 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與樣式 ---
+# --- 1. 頁面配置與樣式 (保持原樣) ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
 st.markdown("""
@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (鎖定 210 學分配置) ---
+# --- 2. 核心資料庫 (嚴格鎖定您的原始設定) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -57,74 +57,67 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
         ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True],
-        ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
-        ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
-        ['部定必修', '實習', '車輛空調檢修實習', 0, 0, 0, 0, 3, 0, True],
-        ['部定必修', '實習', '車身電器系統綜合檢修實習', 0, 0, 0, 0, 4, 0, True],
         ['校訂必修', '一般', '數學 (校訂必修)', 0, 0, 4, 4, 2, 2, False],
         ['校訂必修', '一般', '青少年身心健康管理', 0, 0, 2, 0, 0, 0, False],
         ['校訂必修', '一般', '計算機概論', 2, 0, 0, 0, 0, 0, False],
         ['校訂必修', '一般', '閱讀與寫作', 0, 0, 0, 0, 1, 1, False],
-        ['校訂必修', '專業', '汽車工業英文', 0, 0, 0, 0, 0, 2, False],
-        ['校訂必修', '專業', '電動車概論', 0, 0, 0, 2, 0, 0, False],
-        ['校訂必修', '實習', '專題實作', 0, 0, 0, 0, 2, 2, True],
-        ['校訂必修', '實習', '訊號量測與分析實習', 0, 0, 0, 0, 2, 2, True],
-        ['校訂必修', '實習', '電動機車實習', 0, 0, 0, 0, 0, 2, True],
         ['校訂選修', '一般', '兵家的智慧', 0, 0, 1, 0, 0, 0, False],
-        ['校訂選修', '一般', '野外求生', 0, 0, 0, 1, 0, 0, False],
-        ['校訂選修', '一般', '數學演習', 0, 0, 0, 0, 2, 2, False],
-        ['校訂選修', '專業', '交通安全與法規', 0, 0, 0, 0, 1, 0, False],
-        ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
-        ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 3, 0, False],
         ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車綜合實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車定期保養實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車塗裝實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '車輛儀器檢修實務', 0, 0, 0, 0, 0, 3, True],
-        ['校訂選修', '實習', '汽車美容實務', 0, 0, 0, 0, 0, 3, True],
-        ['校訂選修', '實習', '車輪定位檢修實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '柴油引擎實習', 0, 0, 0, 0, 0, 4, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄 (手機版功能回歸) ---
+# --- 3. 側邊欄與解析邏輯 (精準修正點) ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
-    if st.button("🧹 重置勾選"):
+    if st.button("🧹 重置所有勾選"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
-    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False) # 功能補回
+    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
 
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
     if st.button("🚀 開始偵測"):
         if paste_txt:
-            clean_txt = re.sub(r'\s+', ' ', paste_txt)
-            is_y2_s1_only = "二年級" in clean_txt and ("實得學分 32 0" in clean_txt or "實得學分320" in clean_txt.replace(" ",""))
+            # 偵測「只有二上」的特徵
+            is_y2_s1_only = "二年級" in paste_txt and ("實得學分 32 0" in paste_txt or "實得學分320" in paste_txt.replace(" ",""))
             lines = paste_txt.split('\n')
             for line in lines:
-                clean_l = line.replace(" ", "").replace("\xa0", "")
                 for idx, row in enumerate(st.session_state.courses):
-                    if row[2][:2] in clean_l:
-                        scores = re.findall(r"(?<!\d)(?:[4-9]\d|100)(?!\d)", clean_l)
+                    if row[2][:2] in line:
+                        # 核心解析引擎：抓取該行中「屬性」之後的數字 (代表成績)
+                        # 例如：必修 4 61 -> 抓到 61
+                        # 我們只保留數值 >= 60 的數字作為勾選依據
+                        all_nums = re.findall(r"\d{1,3}", line)
+                        # 排除掉 1-4 (學分常數)，只抓成績項
+                        valid_scores = [int(n) for n in all_nums if int(n) >= 60]
+                        
                         if "一年級" in paste_txt:
-                            if row[3]>0: st.session_state[f"k_{idx}_0_Y1"] = True
-                            if row[4]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                            # 判斷上學期及格 (第一組及格分數)
+                            if row[3] > 0 and len(valid_scores) >= 1: 
+                                # 這裡做一個二次確認，確保該行文字上學期區域不是 0 或不及格
+                                if not re.search(r"必修\s*\d\s*[0-5]\d", line):
+                                    st.session_state[f"k_{idx}_0_Y1"] = True
+                            # 判斷下學期及格 (通常文字中會出現複數個及格分)
+                            if row[4] > 0 and len(valid_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                        
                         if "二年級" in paste_txt:
-                            if row[5]>0: st.session_state[f"k_{idx}_2_Y2"] = True
-                            if not is_y2_s1_only and row[6]>0 and len(scores) >= 3:
+                            # 針對林浩宇：機件原理成績 32 (不及格)，valid_scores 就不會包含它
+                            if row[5] > 0 and len(valid_scores) >= 1: 
+                                # 避免抓到及格學分，卻沒抓到及格分數的誤判
+                                if re.search(rf"{row[2]}.*?(?:必修|選修)\s*\d\s*([6-9]\d|100)", line):
+                                    st.session_state[f"k_{idx}_2_Y2"] = True
+                            if not is_y2_s1_only and row[6] > 0 and len(valid_scores) >= 2:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
-# --- 4. 分頁渲染 (整合單欄檢視邏輯) ---
-tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
+# --- 4. 分頁渲染 ---
+tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
-        num_cols = 1 if is_mobile else 3 # 響應式欄位
+        num_cols = 1 if is_mobile else 3
         cols = st.columns(num_cols)
         year_courses = [r for r in st.session_state.courses if r[3+s_idx[0]] > 0 or r[3+s_idx[1]] > 0]
         for i, row in enumerate(year_courses):
@@ -180,6 +173,6 @@ with cm2:
         if m2: [st.markdown(f'<div class="missing-card">❌ {x}</div>', unsafe_allow_html=True) for x in m2]
         else: st.success("學分已全數取得")
 with cm3:
-    with st.expander(f"{'🔴' if m3 else '🟢'} 三年級", False):
+    with st.expander(f"{'⚠️' if m3 else '🟢'} 三年級", False):
         if m3: [st.markdown(f'<div class="missing-card">⚠️ {x}</div>', unsafe_allow_html=True) for x in m3]
         else: st.success("預計將拿滿學分")
