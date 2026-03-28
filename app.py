@@ -16,10 +16,9 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業學分檢核系統</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 應修總學分：210</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (鎖定 113 課綱科目與學分) ---
+# --- 2. 核心資料庫 (保持您的設定，不變動) ---
 def get_init_courses():
     return [
-        # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
@@ -46,7 +45,7 @@ def get_init_courses():
         ['部定必修', '實習', '機器腳踏車基礎實習', 3, 0, 0, 0, 0, 0, True],
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
-        ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True], # 補回學分
+        ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True],
         ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
         ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
@@ -70,7 +69,7 @@ def get_init_courses():
 if 'courses' not in st.session_state:
     st.session_state.courses = get_init_courses()
 
-# --- 3. UI 與功能 ---
+# --- 3. UI 與功能 (植入位置精準偵測) ---
 with st.sidebar:
     st.header("👤 學生檢核")
     st_name = st.text_input("姓名", value="王茂鈞")
@@ -85,22 +84,31 @@ with st.expander("📥 貼上成績文字自動偵測學分"):
     if st.button("🚀 開始偵測"):
         if paste_txt:
             y1, y2 = "一年級" in paste_txt, "二年級" in paste_txt
-            # 判斷是否為「二上」資料
-            is_s1_only = "上學期" in paste_txt and "下學期" in paste_txt and "實得學分320" in paste_txt.replace(" ","")
-
-            for idx, row in enumerate(st.session_state.courses):
-                # 只要該行文字出現科目名稱前兩個字
-                if row[2][:2] in paste_txt:
-                    if y1:
-                        if row[3] > 0: st.session_state[f"k_{idx}_0"] = True
-                        if row[4] > 0: st.session_state[f"k_{idx}_1"] = True
-                    if y2:
-                        if row[5] > 0: st.session_state[f"k_{idx}_2"] = True
-                        # 如果是二上專用資料，禁止勾二下
-                        if not is_s1_only and row[6] > 0:
-                            st.session_state[f"k_{idx}_3"] = True
+            # --- 核心邏輯：偵測上學期與下學期的分界點 ---
+            # 因為成績單是「科目 上學期成績 下學期成績」排列
+            # 我們搜尋科目出現的那一行中，是否包含兩個「必修」或「選修」的標籤
+            
+            lines = paste_txt.split('\n')
+            for line in lines:
+                for idx, row in enumerate(st.session_state.courses):
+                    subj = row[2][:2]
+                    if subj in line:
+                        # 計算該行出現「必修」或「選修」的次數
+                        # 茂鈞的二上資料，每一行只有一個「必修」或「選修」
+                        # 如果下學期有成績，該行會出現第二次「必修/選修」
+                        count = line.count("必修") + line.count("選修")
+                        
+                        if y1:
+                            if row[3] > 0: st.session_state[f"k_{idx}_0"] = True
+                            if count >= 2 and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
+                        if y2:
+                            if row[5] > 0: st.session_state[f"k_{idx}_2"] = True
+                            # 關鍵修正：只有該行出現第二次屬性標籤，才勾選二下
+                            if count >= 2 and row[6] > 0:
+                                st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
+# --- 4. 介面渲染與數據看板 (完全保留您的代碼) ---
 tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 def render(tab, s_idx):
@@ -118,7 +126,6 @@ render(tabs[0], [0, 1])
 render(tabs[1], [2, 3])
 render(tabs[2], [4, 5])
 
-# --- 4. 數據看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 for idx, row in enumerate(st.session_state.courses):
