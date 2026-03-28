@@ -27,10 +27,9 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (完整 210 學分配置) ---
+# --- 2. 核心資料庫 (鎖定 210 學分配置) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
-        # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
@@ -91,13 +90,14 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄 ---
+# --- 3. 側邊欄 (手機版功能回歸) ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
     if st.button("🧹 重置勾選"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
+    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False) # 功能補回
 
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
@@ -120,16 +120,16 @@ with st.expander("📥 貼上成績文字自動偵測"):
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
-# --- 4. 分頁渲染 (確認數學演習呈現) ---
-tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
+# --- 4. 分頁渲染 (整合單欄檢視邏輯) ---
+tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
-        cols = st.columns(3)
-        # 只要該學年(上或下)學分 > 0 就要顯示
+        num_cols = 1 if is_mobile else 3 # 響應式欄位
+        cols = st.columns(num_cols)
         year_courses = [r for r in st.session_state.courses if r[3+s_idx[0]] > 0 or r[3+s_idx[1]] > 0]
         for i, row in enumerate(year_courses):
             orig_idx = next(idx for idx, r in enumerate(st.session_state.courses) if r[2] == row[2])
-            with cols[i % 3]:
+            with cols[i % num_cols]:
                 st.markdown(f'<div class="course-card">{row[2]}</div>', unsafe_allow_html=True)
                 c1, c2 = row[3+s_idx[0]], row[3+s_idx[1]]
                 sub_cols = st.columns(2)
@@ -140,7 +140,7 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 5. 數據看板 ---
+# --- 5. 數據看板與警告 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
@@ -180,6 +180,6 @@ with cm2:
         if m2: [st.markdown(f'<div class="missing-card">❌ {x}</div>', unsafe_allow_html=True) for x in m2]
         else: st.success("學分已全數取得")
 with cm3:
-    with st.expander(f"{'⚠️' if m3 else '🟢'} 三年級", False):
+    with st.expander(f"{'🔴' if m3 else '🟢'} 三年級", False):
         if m3: [st.markdown(f'<div class="missing-card">⚠️ {x}</div>', unsafe_allow_html=True) for x in m3]
         else: st.success("預計將拿滿學分")
