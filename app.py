@@ -18,16 +18,16 @@ st.markdown("""
     .metric-diff { font-size: 0.8rem; font-weight: bold; padding: 2px 8px; border-radius: 10px; }
     .diff-red { color: #e74c3c; background-color: #fff5f5; }
     .diff-green { color: #27ae60; background-color: #f0fff4; }
-    div[data-testid="stCheckbox"] { background-color: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
-    .course-card { background-color: #f1f5f9; padding: 8px; border-radius: 8px; border-left: 5px solid #1e3799; margin-top: 10px; font-weight: bold; font-size: 0.95rem; }
-    .missing-card { color: #e74c3c; background-color: #fff5f5; padding: 8px; border-radius: 6px; margin-bottom: 5px; border-left: 4px solid #e74c3c; font-size: 0.85rem; font-weight: bold; }
+    div[data-testid="stCheckbox"] { background-color: #f1f5f9; padding: 5px 10px; border-radius: 5px; border: 1px solid #cbd5e1; margin-bottom: 5px; }
+    .course-card { background-color: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 5px solid #4a69bd; margin-top: 10px; font-weight: bold; }
+    .missing-card { color: #e74c3c; background-color: #fff5f5; padding: 8px; border-radius: 6px; margin-bottom: 5px; border-left: 4px solid #e74c3c; font-size: 0.9rem; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
-st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113 課綱精確對位版</div>", unsafe_allow_html=True)
+st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (58 個科目完整列表) ---
+# --- 2. 核心資料庫 (完整 58 科目，不變動) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -97,47 +97,43 @@ with st.sidebar:
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
-    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
+    is_mobile = st.checkbox("📱 手機版檢視", value=False)
 
-# --- 4. 偵測引擎 (座標分段攔截法) ---
+# --- 4. 偵測引擎 (參考王茂鈞成功邏輯) ---
 with st.expander("📥 貼上成績文字自動偵測"):
-    paste_txt = st.text_area("在此貼上內容：", height=100)
-    if st.button("🚀 開始偵測"):
+    paste_txt = st.text_area("在此貼上內容：", height=120)
+    if st.button("🚀 開始偵測學分"):
         if paste_txt:
-            # 偵測是否只有三學期成績
             txt_cl = paste_txt.replace(" ","").replace("\xa0","")
+            # 攔截信號：實得學分 13 0 或 32 0
             is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
             
             lines = paste_txt.split('\n')
             for line in lines:
                 l_cl = line.replace(" ","").replace("\xa0","")
-                # 尋找「下學期」字眼的座標，用來切割字串
-                idx_mid = l_cl.find("必修", l_cl.find("必修") + 1) if l_cl.count("必修") > 1 else 999
-                
                 for idx, row in enumerate(st.session_state.courses):
-                    if row[2][:2] in l_cl:
-                        # 找該行所有及格數字
-                        match_s = re.findall(r"(?:必修|選修)\d(\d{1,3})", l_cl)
+                    subj = row[2][:2]
+                    if subj in l_cl:
+                        # 找及格分數 (只抓 60-100)
+                        match_s = re.findall(r"(?:必修|選修)\d([6-9]\d|100)", l_cl)
                         
                         if "一年級" in paste_txt:
-                            # 第一個及格分在前半段才勾上學期
-                            if row[3]>0 and len(match_s)>=1 and int(match_s[0])>=60:
-                                st.session_state[f"k_{idx}_0_Y1"] = True
-                            # 第二個及格分在後半段才勾下學期
-                            if row[4]>0 and len(match_s)>=2 and int(match_s[1])>=60:
-                                st.session_state[f"k_{idx}_1_Y1"] = True
+                            if row[3]>0 and len(match_s)>=1: st.session_state[f"k_{idx}_0_Y1"] = True
+                            if row[4]>0 and len(match_s)>=2: st.session_state[f"k_{idx}_1_Y1"] = True
                         
                         if "二年級" in paste_txt:
-                            # 勾二上
-                            if row[5]>0 and len(match_s)>=1 and int(match_s[0])>=60:
+                            # 二上勾選：必須有至少一個及格分
+                            if row[5]>0 and len(match_s)>=1:
+                                # 額外檢查：如果文字裡有及格分，才勾
                                 st.session_state[f"k_{idx}_2_Y2"] = True
-                            # 勾二下：必須「不是三學期制」且「有第二個及格成績」
-                            if not is_y2_s1_only and row[6]>0 and len(match_s)>=2 and int(match_s[1])>=60:
+                            # 二下勾選：必須沒有攔截信號，且該行真的有「下學期」的及格分
+                            # 林浩宇的例子：found_scores 有兩個 74，但因為攔截器啟動，所以二下不勾
+                            if not is_y2_s1_only and row[6]>0 and len(match_s)>=2:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
 # --- 5. 分頁渲染 ---
-tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
+tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
         num_cols = 1 if is_mobile else 3
@@ -156,7 +152,7 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 6. 數據看板 ---
+# --- 6. 畢業數據與缺修清單 (維持穩定排版) ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
@@ -185,7 +181,7 @@ for i, (l, curr, tar) in enumerate(dash):
         st.markdown(f'<div class="metric-card"><div class="metric-label">{l}</div><div class="metric-value">{curr}/{tar}</div><div>{diff_html}</div></div>', unsafe_allow_html=True)
         st.progress(min(curr/tar, 1.0))
 
-st.markdown("### 🔍 缺修科目 (點擊展開)")
+st.markdown("### 🔍 缺修科目清單")
 cm1, cm2, cm3 = st.columns(3)
 with cm1:
     with st.expander(f"{'🔴' if m1 else '🟢'} 一年級", False):
