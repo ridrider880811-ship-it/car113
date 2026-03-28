@@ -1,5 +1,4 @@
 import streamlit as st
-import re
 
 # --- 1. 頁面配置 ---
 st.set_page_config(page_title="汽車科畢業學分檢核", layout="wide")
@@ -18,7 +17,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業學分檢核系統</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 應修總學分：210</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (鎖定版：一年級 64, 二上 32) ---
+# --- 2. 核心資料庫 (嚴格依照王茂鈞二上 32 學分科目建立) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
@@ -48,7 +47,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '機器腳踏車基礎實習', 3, 0, 0, 0, 0, 0, True],
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
-        ['部定必修', '實習', '基本電學', 0, 0, 0, 2, 0, 0, True], # 修正：避免二上重複計算
+        ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True], # 已修正學分
         ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
         ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
@@ -64,25 +63,12 @@ if 'courses' not in st.session_state:
         ['校訂必修', '實習', '訊號量測與分析實習', 0, 0, 0, 0, 2, 2, True],
         ['校訂必修', '實習', '電動機車實習', 0, 0, 0, 0, 0, 2, True],
         ['校訂選修', '一般', '兵家的智慧', 0, 0, 1, 0, 0, 0, False],
-        ['校訂選修', '一般', '野外求生', 0, 0, 0, 1, 0, 0, False],
-        ['校訂選修', '一般', '數學演習', 0, 0, 0, 0, 2, 2, False],
-        ['校訂選修', '專業', '交通安全與法規', 0, 0, 0, 0, 1, 0, False],
-        ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
-        ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 3, 0, False],
         ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車綜合實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車定期保養實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車塗裝實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '車輛儀器檢修實務', 0, 0, 0, 0, 0, 3, True],
-        ['校訂選修', '實習', '汽車美容實務', 0, 0, 0, 0, 0, 3, True],
-        ['校訂選修', '實習', '車輪定位檢修實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '柴油引擎實習', 0, 0, 0, 0, 0, 4, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 解析功能 (最終修正) ---
+# --- 3. 解析功能 (簡單暴力解析) ---
 with st.sidebar:
     st_name = st.text_input("座號 / 姓名", value="王茂鈞")
     if st.button("🧹 清空"):
@@ -90,26 +76,26 @@ with st.sidebar:
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
 
-with st.expander("📥 貼上成績文字"):
+with st.expander("📥 貼上成績文字自動勾選"):
     paste_txt = st.text_area("在此貼上文字：", height=150)
-    if st.button("🚀 執行解析"):
+    if st.button("🚀 執行自動勾選"):
         if paste_txt:
             y1, y2, y3 = "一年級" in paste_txt, "二年級" in paste_txt, "三年級" in paste_txt
-            lines = paste_txt.split('\n')
-            for line in lines:
-                clean = line.replace(" ", "")
-                for idx, row in enumerate(st.session_state.courses):
-                    if row[2][:2] in clean:
-                        # 抓取及格分數 (排除單個學分數字)
-                        scores = re.findall(r"(?<!\d)(?:[4-9]\d|100)(?!\d)", clean)
-                        if y1:
-                            if row[3]>0: st.session_state[f"k_{idx}_0"] = True
-                            if row[4]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_1"] = True
-                        if y2:
-                            if row[5]>0: st.session_state[f"k_{idx}_2"] = True
-                            # 二下防誤勾核心：只有當成績數量真的有兩組時才勾二下
-                            if row[6]>0 and "實得學分320" not in paste_txt.replace(" ","") and len(scores) >= 2:
-                                st.session_state[f"k_{idx}_3"] = True
+            # 判斷學期：茂鈞提供的文字只有上學期成績，下學期欄位通常接在後面或為空
+            # 我們直接判斷「實得學分 32 0」這種特徵
+            s2_blocked = "實得學分320" in paste_txt.replace(" ","").replace("\xa0","")
+
+            for idx, row in enumerate(st.session_state.courses):
+                subj = row[2][:2] # 抓前兩個字
+                if subj in paste_txt:
+                    if y1:
+                        if row[3] > 0: st.session_state[f"k_{idx}_0"] = True
+                        if row[4] > 0: st.session_state[f"k_{idx}_1"] = True
+                    if y2:
+                        if row[5] > 0: st.session_state[f"k_{idx}_2"] = True
+                        # 只有當沒有被攔截器攔住時才勾二下
+                        if not s2_blocked and row[6] > 0: 
+                            st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
 tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
@@ -122,14 +108,14 @@ def render(tab, s_idx):
                 st.markdown(f'<div class="course-card">{row[2]}</div>', unsafe_allow_html=True)
                 cols = st.columns(2)
                 k1, k2 = f"k_{idx}_{s_idx[0]}", f"k_{idx}_{s_idx[1]}"
-                if c1 > 0: cols[0].checkbox(f"上及格({c1})", key=k1)
-                if c2 > 0: cols[1].checkbox(f"下及格({c2})", key=k2)
+                if c1 > 0: cols[0].checkbox(f"上學期及格({c1})", key=k1)
+                if c2 > 0: cols[1].checkbox(f"下學期及格({c2})", key=k2)
 
 render(tabs[0], [0, 1])
 render(tabs[1], [2, 3])
 render(tabs[2], [4, 5])
 
-# --- 4. 統計與顯示 ---
+# --- 4. 統計 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 for idx, row in enumerate(st.session_state.courses):
@@ -164,6 +150,3 @@ with cm2:
 with cm3:
     with st.expander("📅 三年級", expanded=True):
         for m in m3: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
-
-if t >= 160 and d >= 106.3 and p >= 60 and r >= 30:
-    st.balloons(); st.success("🎓 恭喜畢業！")
