@@ -98,11 +98,10 @@ with st.sidebar:
         st.rerun()
     is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
 
-# --- 4. 偵測引擎 (UI 分區優化版，核心邏輯 100% 凍結) ---
-with st.expander("📥 分區貼上成績文字 (解決重複計算問題)", expanded=True):
-    st.info("💡 **請將各學年成績單分開貼入對應分頁**，系統能更精確地分配同名科目（如體育、數學）。")
+# --- 4. 偵測引擎 (終極抗黏貼：科目斬斷法) ---
+with st.expander("📥 分區貼上成績文字 (解決重複計算與黏貼亂碼)", expanded=True):
+    st.info("💡 **請將各學年成績單分開貼入對應分頁**，系統能自動處理沒有換行的黏貼文字。")
     
-    # 使用 Tabs 將輸入框分頁，節省版面，不擁擠
     t_y1, t_y2, t_y3 = st.tabs(["📝 一年級", "📝 二年級", "📝 三年級"])
     with t_y1:
         txt_y1 = st.text_area("一年級輸入區", height=130, label_visibility="collapsed", placeholder="請貼上【一年級】歷年成績總表...")
@@ -112,57 +111,63 @@ with st.expander("📥 分區貼上成績文字 (解決重複計算問題)", exp
         txt_y3 = st.text_area("三年級輸入區", height=130, label_visibility="collapsed", placeholder="請貼上【三年級】歷年成績總表...")
 
     if st.button("🚀 執行精準分析", use_container_width=True):
-        
-        # 幫老師把輸入的文字加上學年標籤，並分開處理，絕不混淆！
         texts_to_process = [
             ("一年級\n" + txt_y1) if txt_y1.strip() else "",
             ("二年級\n" + txt_y2) if txt_y2.strip() else "",
             ("三年級\n" + txt_y3) if txt_y3.strip() else ""
         ]
 
-        # -------------------------------------------------------------
-        # 以下為上一版完全成功的核心引擎，一字不動！
-        # -------------------------------------------------------------
+        # 建立所有科目名稱清單，用來當作切割黏貼文字的刀子
+        all_subjs = list(set([row[2].split('(')[0].replace(" ", "") for row in st.session_state.courses]))
+        all_subjs.sort(key=len, reverse=True) # 名字長的優先切，避免誤切
+        split_pattern = f'({"|".join(all_subjs)})'
+
         for paste_txt in texts_to_process:
             if not paste_txt: continue
             
-            clean_txt = paste_txt.replace(" ","").replace("\xa0","")
-            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in clean_txt or "實得學分320" in clean_txt)
+            # 把文字全部壓扁，拔除所有會干擾的空白與換行
+            clean_txt = paste_txt.replace(" ", "").replace("\n", "").replace("\xa0", "")
             
-            lines = paste_txt.split('\n')
-            for line in lines:
-                l_raw = line.replace(" ","").replace("\xa0","")
-                if not l_raw: continue
-                
-                parts = re.split(r'必修|選修', l_raw)
-                if len(parts) <= 1: continue
-                subj_in_line = parts[0].strip().replace(" ", "")
+            is_y1 = "一年級" in paste_txt
+            is_y2 = "二年級" in paste_txt
+            is_y3 = "三年級" in paste_txt
+            is_y2_s1_only = is_y2 and ("實得學分130" in clean_txt or "實得學分320" in clean_txt)
+            
+            # 把黏在一起的字串，依照科目名稱切成一塊一塊
+            chunks = re.split(split_pattern, clean_txt)
+            
+            # chunks 的結構會變成：[前言, 科目A, 成績A, 科目B, 成績B...]
+            for i in range(1, len(chunks) - 1, 2):
+                subj_in_line = chunks[i]
+                score_str = chunks[i+1] # 科目後方跟著的分數文字
                 
                 for idx, row in enumerate(st.session_state.courses):
                     clean_subj = row[2].split('(')[0].replace(" ", "")
-                    
                     if clean_subj == subj_in_line:
+                        # 找到科目後，用必修/選修切開上、下學期成績
+                        parts = re.split(r'必修|選修', score_str)
                         
                         # 處理上學期
                         if len(parts) > 1:
-                            score_m = re.search(r'^\d(\d{1,3})', parts[1])
-                            if score_m:
-                                score = int(score_m.group(1))
-                                if score >= 60:
-                                    if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
-                                    if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
-                                    if "三年級" in paste_txt and row[7] > 0: st.session_state[f"k_{idx}_4"] = True
-                        
+                            expected_cr = row[3] if is_y1 else (row[5] if is_y2 else (row[7] if is_y3 else 0))
+                            target_k = f"k_{idx}_0" if is_y1 else (f"k_{idx}_2" if is_y2 else f"k_{idx}_4")
+                            
+                            if expected_cr > 0:
+                                # 嚴格配對：學分必須相符，抓取後方成績
+                                m1 = re.search(rf'^{expected_cr}(100|[1-9]?\d)', parts[1])
+                                if m1 and int(m1.group(1)) >= 60:
+                                    st.session_state[target_k] = True
+                                    
                         # 處理下學期
-                        if not is_y2_s1_only and len(parts) > 2:
-                            score_m_down = re.search(r'^\d(\d{1,3})', parts[2])
-                            if score_m_down:
-                                score_down = int(score_m_down.group(1))
-                                if score_down >= 60:
-                                    if "一年級" in paste_txt and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
-                                    if "二年級" in paste_txt and row[6] > 0: st.session_state[f"k_{idx}_3"] = True
-                                    if "三年級" in paste_txt and row[8] > 0: st.session_state[f"k_{idx}_5"] = True
-        # -------------------------------------------------------------
+                        if len(parts) > 2:
+                            expected_cr2 = row[4] if is_y1 else (row[6] if is_y2 else (row[8] if is_y3 else 0))
+                            target_k2 = f"k_{idx}_1" if is_y1 else (f"k_{idx}_3" if is_y2 else f"k_{idx}_5")
+                            
+                            if expected_cr2 > 0 and not is_y2_s1_only:
+                                m2 = re.search(rf'^{expected_cr2}(100|[1-9]?\d)', parts[2])
+                                if m2 and int(m2.group(1)) >= 60:
+                                    st.session_state[target_k2] = True
+                        break # 處理完這個科目就跳出，看下一個切塊
         st.rerun()
 
 # --- 5. 分頁渲染 ---
@@ -240,3 +245,4 @@ with cm3:
     with st.expander("高三預計", False):
         if m3: [st.markdown(f'<div class="missing-card">⚠️ {x}</div>', unsafe_allow_html=True) for x in m3]
         else: st.success("預計全過")
+            
