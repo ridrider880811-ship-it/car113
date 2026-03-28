@@ -1,7 +1,7 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與樣式 ---
+# --- 1. 頁面配置 ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
 st.markdown("""
@@ -27,10 +27,9 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113 課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格檢查每一行皆為 10 個欄位) ---
+# --- 2. 核心資料庫 (58 個科目完整列表) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
-        # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
@@ -91,7 +90,7 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄與解析邏輯 ---
+# --- 3. 側邊欄 ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
     if st.button("🧹 重置所有勾選"):
@@ -100,33 +99,41 @@ with st.sidebar:
         st.rerun()
     is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
 
+# --- 4. 核心偵測引擎 (高二上專門優化版) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
     if st.button("🚀 開始偵測"):
         if paste_txt:
             txt_cl = paste_txt.replace(" ","").replace("\xa0","")
+            # 判斷是否為只有三學期的資料
             is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
             
             lines = paste_txt.split('\n')
             for line in lines:
                 l_cl = line.replace(" ","").replace("\xa0","")
                 for idx, row in enumerate(st.session_state.courses):
-                    if row[2][:2] in line:
-                        # 抓取「必修/選修」後方的數字，判斷是否及格
-                        match_s = re.findall(r"(?:必修|選修)\d(\d{1,3})", l_cl)
+                    if row[2][:2] in l_cl:
+                        # 抓取該行所有及格成績 (>=60)
+                        # 林浩宇格式：必修372 -> 抓出 72
+                        found_scores = re.findall(r"(?:必修|選修)\d([6-9]\d|100)", l_cl)
+                        
                         if "一年級" in paste_txt:
-                            if row[3]>0 and len(match_s)>=1 and int(match_s[0])>=60:
-                                st.session_state[f"k_{idx}_0_Y1"] = True
-                            if row[4]>0 and len(match_s)>=2 and int(match_s[1])>=60:
-                                st.session_state[f"k_{idx}_1_Y1"] = True
+                            if row[3]>0 and len(found_scores) >= 1: 
+                                # 額外檢查：如果該科目只出現在下學期（如底盤原理），則不勾上學期
+                                if re.search(r"上學期.*?" + row[2][:2], paste_txt, re.S) or "一年級" in line:
+                                    st.session_state[f"k_{idx}_0_Y1"] = True
+                            if row[4]>0 and len(found_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                        
                         if "二年級" in paste_txt:
-                            if row[5]>0 and len(match_s)>=1 and int(match_s[0])>=60:
+                            # 只要該行出現第一個及格分數，就勾二上
+                            if row[5]>0 and len(found_scores) >= 1: 
                                 st.session_state[f"k_{idx}_2_Y2"] = True
-                            if not is_y2_s1_only and row[6]>0 and len(match_s)>=2 and int(match_s[1])>=60:
+                            # 除非確定有二下且有第二個分數，否則禁止勾二下
+                            if not is_y2_s1_only and row[6]>0 and len(found_scores) >= 2:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
-# --- 4. 分頁渲染 ---
+# --- 5. 分頁渲染 (保持 RWD) ---
 tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
@@ -146,15 +153,12 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 5. 數據看板與警告 (已修復 IndexError) ---
+# --- 6. 畢業數據看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 for idx, row in enumerate(st.session_state.courses):
     ev = 0
-    # 確保 row 長度足夠，避免 Index Error
-    if len(row) < 10: continue
-    
     for s in range(6):
         y_tag = "Y1" if s < 2 else ("Y2" if s < 4 else "Y3")
         if row[3+s] > 0:
@@ -164,21 +168,23 @@ for idx, row in enumerate(st.session_state.courses):
                 if s < 2: m1.append(msg)
                 elif s < 4: m2.append(msg)
                 else: m3.append(msg)
+    # 確保 row 長度足夠
     stats.append({'cat': row[0], 'type': row[1], 'val': ev, 'pure': row[9]})
 
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
 
 d_cols = st.columns(4)
-dash = [("🟢 總及格學分", total, 160), ("🔵 部定必修", dept, 106.3), ("🟠 專業與實習", prof, 60), ("🔴 純實習學分", prac, 30)]
+dash = [("🟢 總學分", total, 160), ("🔵 部定必修", dept, 106.3), ("🟠 專業實習", prof, 60), ("🔴 純實習", prac, 30)]
 for i, (l, curr, tar) in enumerate(dash):
     diff = tar - curr
-    diff_html = f'<span class="metric-diff diff-red">還差 {diff:.1f}</span>' if diff > 0 else '<span class="metric-diff diff-green">已達標</span>'
+    diff_html = f'<span class="metric-diff diff-red">差 {diff:.1f}</span>' if diff > 0 else '<span class="metric-diff diff-green">達標</span>'
     with d_cols[i]:
         st.markdown(f'<div class="metric-card"><div class="metric-label">{l}</div><div class="metric-value">{curr}/{tar}</div><div>{diff_html}</div></div>', unsafe_allow_html=True)
         st.progress(min(curr/tar, 1.0))
 
-st.markdown("### 🔍 欠修/未及格科目")
+# --- 7. 缺修清單 (預設收合) ---
+st.markdown("### 🔍 缺修科目 (點擊展開)")
 cm1, cm2, cm3 = st.columns(3)
 with cm1:
     with st.expander(f"{'🔴' if m1 else '🟢'} 一年級", False):
