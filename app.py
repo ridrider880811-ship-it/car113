@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113 課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (113 課綱最終校對科目) ---
+# --- 2. 核心資料庫 (嚴格檢查每一行皆為 10 個欄位) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
@@ -59,7 +59,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
         ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True],
         ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
-        ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, True],
+        ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
         ['部定必修', '實習', '車輛空調檢修實習', 0, 0, 0, 0, 3, 0, True],
         ['部定必修', '實習', '車身電器系統綜合檢修實習', 0, 0, 0, 0, 4, 0, True],
@@ -79,14 +79,19 @@ if 'courses' not in st.session_state:
         ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
         ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 3, 0, False],
         ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 0, 4, 0, True],
+        ['校訂選修', '實習', '汽車綜合實習', 0, 0, 0, 0, 4, 0, True],
         ['校訂選修', '實習', '汽車定期保養實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 0, 4, True],
+        ['校訂選修', '實習', '汽車塗裝實習', 0, 0, 0, 0, 4, 0, True],
+        ['校訂選修', '實習', '車輛儀器檢修實務', 0, 0, 0, 0, 0, 3, True],
         ['校訂選修', '實習', '汽車美容實務', 0, 0, 0, 0, 0, 3, True],
+        ['校訂選修', '實習', '車輪定位檢修實習', 0, 0, 0, 0, 0, 4, True],
+        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 0, 4, True],
+        ['校訂選修', '實習', '柴油引擎實習', 0, 0, 0, 0, 0, 4, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄與解析 ---
+# --- 3. 側邊欄與解析邏輯 ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
     if st.button("🧹 重置所有勾選"):
@@ -107,14 +112,13 @@ with st.expander("📥 貼上成績文字自動偵測"):
                 l_cl = line.replace(" ","").replace("\xa0","")
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in line:
+                        # 抓取「必修/選修」後方的數字，判斷是否及格
                         match_s = re.findall(r"(?:必修|選修)\d(\d{1,3})", l_cl)
-                        
                         if "一年級" in paste_txt:
                             if row[3]>0 and len(match_s)>=1 and int(match_s[0])>=60:
                                 st.session_state[f"k_{idx}_0_Y1"] = True
                             if row[4]>0 and len(match_s)>=2 and int(match_s[1])>=60:
                                 st.session_state[f"k_{idx}_1_Y1"] = True
-                        
                         if "二年級" in paste_txt:
                             if row[5]>0 and len(match_s)>=1 and int(match_s[0])>=60:
                                 st.session_state[f"k_{idx}_2_Y2"] = True
@@ -142,12 +146,15 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 5. 數據看板 ---
+# --- 5. 數據看板與警告 (已修復 IndexError) ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
 for idx, row in enumerate(st.session_state.courses):
     ev = 0
+    # 確保 row 長度足夠，避免 Index Error
+    if len(row) < 10: continue
+    
     for s in range(6):
         y_tag = "Y1" if s < 2 else ("Y2" if s < 4 else "Y3")
         if row[3+s] > 0:
