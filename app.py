@@ -18,7 +18,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業學分檢核系統</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 應修總學分：210</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (科目鎖定，確保物理高一、數學高二 4+4) ---
+# --- 2. 核心資料庫 (科目鎖定，絕不動搖) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -81,7 +81,7 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 解析功能 (最強力模糊對位) ---
+# --- 3. 解析功能 (高強度防誤勾邏輯) ---
 with st.sidebar:
     st_name = st.text_input("座號 / 姓名", value="王茂鈞")
     if st.button("🧹 清空勾選"):
@@ -96,24 +96,29 @@ with st.expander("📥 貼上成績文字自動勾選"):
             y1 = "一年級" in paste_txt
             y2 = "二年級" in paste_txt
             y3 = "三年級" in paste_txt
+            
+            # 王茂鈞二上特徵：文字中有「實得學分 32 0」，最後那個 0 代表下學期沒學分
+            # 我們利用這個特徵來鎖定學期
+            has_s2_content = "下學期" in paste_txt and ("實得學分3232" in paste_txt.replace(" ","") or "實得學分3131" in paste_txt.replace(" ",""))
+
             lines = paste_txt.split('\n')
             for line in lines:
                 clean_line = line.replace(" ", "")
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in clean_line:
-                        # 找尋該行中所有及格成績 (40-100分)
-                        # 我們排除學分數字(通常是1-4)，只抓兩位或三位數
+                        # 抓取該行中所有的及格數字 (40-100)
                         scores = re.findall(r"(?<!\d)(?:[4-9]\d|100)(?!\d)", clean_line)
                         
                         if y1:
-                            if row[3]>0 and len(scores) >= 1: st.session_state[f"k_{idx}_0"] = True
+                            if row[3]>0: st.session_state[f"k_{idx}_0"] = True
                             if row[4]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_1"] = True
                         if y2:
-                            if row[5]>0 and len(scores) >= 1: st.session_state[f"k_{idx}_2"] = True
-                            if row[6]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_3"] = True
-                        if y3:
-                            if row[7]>0 and len(scores) >= 1: st.session_state[f"k_{idx}_4"] = True
-                            if row[8]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_5"] = True
+                            # 這是關鍵：如果文字尾巴顯示學分是 32 0，代表二下完全沒資料，不准勾
+                            if row[5]>0 and len(scores) >= 1: 
+                                st.session_state[f"k_{idx}_2"] = True
+                            # 只有當總學分不是 32 0 且該行有第二個成績時才勾二下
+                            if row[6]>0 and "實得學分320" not in paste_txt.replace(" ","") and len(scores) >= 2:
+                                st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
 tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
@@ -133,7 +138,7 @@ render(tabs[0], [0, 1])
 render(tabs[1], [2, 3])
 render(tabs[2], [4, 5])
 
-# --- 4. 統計與畢業門檻 ---
+# --- 4. 統計與畢業看板 ---
 st.markdown("---")
 st.subheader("📊 畢業門檻達成檢測")
 stats, m1, m2, m3 = [], [], [], []
@@ -167,18 +172,18 @@ with c4:
     st.metric("純實習", f"{prac} / 30"); st.progress(min(prac/30, 1.0)); st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 🔍 未取得學分清單")
-cm1, cm2, cm3 = st.columns(3)
-with cm1:
+col_m1, col_m2, col_m3 = st.columns(3)
+with col_m1:
     with st.expander("📅 一年級缺修", expanded=True):
         if m1: 
             for m in m1: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
         else: st.write("✅ 已拿滿")
-with cm2:
+with col_m2:
     with st.expander("📅 二年級缺修", expanded=True):
         if m2:
             for m in m2: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
         else: st.write("✅ 已拿滿")
-with cm3:
+with col_m3:
     with st.expander("📅 三年級缺修", expanded=True):
         if m3:
             for m in m3: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
