@@ -99,42 +99,45 @@ with st.sidebar:
         st.rerun()
     is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
 
-# --- 4. 核心偵測引擎 (高二上專門優化版) ---
+# --- 4. 偵測引擎 (座標分段攔截法) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
     if st.button("🚀 開始偵測"):
         if paste_txt:
+            # 偵測是否只有三學期成績
             txt_cl = paste_txt.replace(" ","").replace("\xa0","")
-            # 判斷是否為只有三學期的資料
             is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
             
             lines = paste_txt.split('\n')
             for line in lines:
                 l_cl = line.replace(" ","").replace("\xa0","")
+                # 尋找「下學期」字眼的座標，用來切割字串
+                idx_mid = l_cl.find("必修", l_cl.find("必修") + 1) if l_cl.count("必修") > 1 else 999
+                
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in l_cl:
-                        # 抓取該行所有及格成績 (>=60)
-                        # 林浩宇格式：必修372 -> 抓出 72
-                        found_scores = re.findall(r"(?:必修|選修)\d([6-9]\d|100)", l_cl)
+                        # 找該行所有及格數字
+                        match_s = re.findall(r"(?:必修|選修)\d(\d{1,3})", l_cl)
                         
                         if "一年級" in paste_txt:
-                            if row[3]>0 and len(found_scores) >= 1: 
-                                # 額外檢查：如果該科目只出現在下學期（如底盤原理），則不勾上學期
-                                if re.search(r"上學期.*?" + row[2][:2], paste_txt, re.S) or "一年級" in line:
-                                    st.session_state[f"k_{idx}_0_Y1"] = True
-                            if row[4]>0 and len(found_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                            # 第一個及格分在前半段才勾上學期
+                            if row[3]>0 and len(match_s)>=1 and int(match_s[0])>=60:
+                                st.session_state[f"k_{idx}_0_Y1"] = True
+                            # 第二個及格分在後半段才勾下學期
+                            if row[4]>0 and len(match_s)>=2 and int(match_s[1])>=60:
+                                st.session_state[f"k_{idx}_1_Y1"] = True
                         
                         if "二年級" in paste_txt:
-                            # 只要該行出現第一個及格分數，就勾二上
-                            if row[5]>0 and len(found_scores) >= 1: 
+                            # 勾二上
+                            if row[5]>0 and len(match_s)>=1 and int(match_s[0])>=60:
                                 st.session_state[f"k_{idx}_2_Y2"] = True
-                            # 除非確定有二下且有第二個分數，否則禁止勾二下
-                            if not is_y2_s1_only and row[6]>0 and len(found_scores) >= 2:
+                            # 勾二下：必須「不是三學期制」且「有第二個及格成績」
+                            if not is_y2_s1_only and row[6]>0 and len(match_s)>=2 and int(match_s[1])>=60:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
-# --- 5. 分頁渲染 (保持 RWD) ---
-tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
+# --- 5. 分頁渲染 ---
+tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
         num_cols = 1 if is_mobile else 3
@@ -153,7 +156,7 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 6. 畢業數據看板 ---
+# --- 6. 數據看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
@@ -168,7 +171,6 @@ for idx, row in enumerate(st.session_state.courses):
                 if s < 2: m1.append(msg)
                 elif s < 4: m2.append(msg)
                 else: m3.append(msg)
-    # 確保 row 長度足夠
     stats.append({'cat': row[0], 'type': row[1], 'val': ev, 'pure': row[9]})
 
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
@@ -183,7 +185,6 @@ for i, (l, curr, tar) in enumerate(dash):
         st.markdown(f'<div class="metric-card"><div class="metric-label">{l}</div><div class="metric-value">{curr}/{tar}</div><div>{diff_html}</div></div>', unsafe_allow_html=True)
         st.progress(min(curr/tar, 1.0))
 
-# --- 7. 缺修清單 (預設收合) ---
 st.markdown("### 🔍 缺修科目 (點擊展開)")
 cm1, cm2, cm3 = st.columns(3)
 with cm1:
