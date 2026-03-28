@@ -1,53 +1,6 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與樣式 (完全不動) ---
-st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
-
-st.markdown("""
-    <style>
-    html, body, [class*="css"] { font-family: "Microsoft JhengHei", sans-serif; }
-    .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; color: #1e3799; margin-bottom: 5px; }
-    .metric-card {
-        background-color: #ffffff; padding: 15px; border-radius: 12px;
-        border-top: 5px solid #1e3799; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-align: center; margin-bottom: 15px; min-height: 110px;
-    }
-    .year-summary {
-        background-color: #f1f5f9; padding: 12px; border-radius: 8px;
-        border-left: 5px solid #1e3799; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 1.2rem;
-    }
-    .metric-value { font-size: 1.5rem; color: #2c3e50; font-weight: 900; }
-    div[data-testid="stCheckbox"] { background-color: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
-    .course-card { background-color: #f1f5f9; padding: 8px; border-radius: 8px; border-left: 5px solid #1e3799; margin-top: 10px; font-weight: bold; }
-    .missing-card { color: #e74c3c; background-color: #fff5f5; padding: 8px; border-radius: 6px; margin-bottom: 5px; border-left: 4px solid #e74c3c; font-size: 0.85rem; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
-st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
-
-# --- 2. 核心資料庫 (58科目完整版，完全不動) ---
-if 'courses' not in st.session_state:
-    st.session_state.courses = [
-        ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
-        ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
-        ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
-        ['部必修', '一般', '歷史', 2, 0, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '地理', 0, 0, 0, 2, 0, 0, False], 
-        ['部定必修', '一般', '公民與社會', 0, 0, 0, 0, 2, 0, False],
-        ['部定必修', '一般', '物理', 2, 2, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '化學', 0, 2, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '音樂', 0, 0, 1, 1, 0, 0, False],
-        ['部定必修', '一般', '美術', 2, 0, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '法律與生活', 0, 0, 0, 0, 0, 2, False],
-        ['部定必修', '一般', '資訊科技', 0, 2, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '健康與護理', 0, 2, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '體育', 2, 2, 2, 2, 2, 2, False],
-        ['部定必修', '一般', '全民國防教育', 1, 1, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '本土語/臺灣手語', 0, 0, 0, 2, 0, 0, False],import streamlit as st
-import re
-
 # --- 1. 頁面配置與樣式 ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
@@ -74,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格依照正確課綱：二下無基本電學) ---
+# --- 2. 核心資料庫 (嚴格依照正確課綱，括號已閉合) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -103,7 +56,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '機器腳踏車基礎實習', 3, 0, 0, 0, 0, 0, True],
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
-        ['部定必修', '實習', '基本電學', 0, 0, 2, 0, 0, 0, True], # 已確認：僅二上
+        ['部定必修', '實習', '基本電學', 0, 0, 2, 0, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
         ['校訂必修', '一般', '數學 (校訂必修)', 0, 0, 4, 4, 2, 2, False],
         ['校訂必修', '一般', '青少年身心健康管理', 0, 0, 2, 0, 0, 0, False],
@@ -126,42 +79,32 @@ with st.sidebar:
         st.rerun()
     is_mobile = st.checkbox("📱 手機版檢視", value=False)
 
-# --- 4. 偵測引擎 (座標分段切分法) ---
+# --- 4. 偵測引擎 (絕對解析邏輯) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=120)
-    if st.button("🚀 執行分析"):
+    if st.button("🚀 執行檢核"):
         if paste_txt:
             clean_txt = paste_txt.replace(" ","").replace("\xa0","")
-            # 零值攔截特徵 (13 0 / 32 0)
             is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in clean_txt or "實得學分320" in clean_txt)
-            
             lines = paste_txt.split('\n')
             for line in lines:
                 l_raw = line.replace(" ","").replace("\xa0","")
                 if not l_raw: continue
-                
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in l_raw:
-                        # 依照「必修/選修」切開
                         parts = re.split(r'必修|選修', l_raw)
-                        
-                        # 處理上學期 (parts[1])
+                        # 處理上學期
                         if len(parts) > 1:
                             score_m = re.search(r'^\d(\d{1,3})', parts[1])
-                            if score_m:
-                                score = int(score_m.group(1))
-                                if score >= 60:
-                                    if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
-                                    if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
-                        
-                        # 處理下學期 (parts[2]) - 需過攔截器
+                            if score_m and int(score_m.group(1)) >= 60:
+                                if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
+                                if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
+                        # 處理下學期
                         if not is_y2_s1_only and len(parts) > 2:
                             score_m_down = re.search(r'^\d(\d{1,3})', parts[2])
-                            if score_m_down:
-                                score_down = int(score_m_down.group(1))
-                                if score_down >= 60:
-                                    if "一年級" in paste_txt and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
-                                    if "二年級" in paste_txt and row[6] > 0: st.session_state[f"k_{idx}_3"] = True
+                            if score_m_down and int(score_m_down.group(1)) >= 60:
+                                if "一年級" in paste_txt and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
+                                if "二年級" in paste_txt and row[6] > 0: st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
 # --- 5. 分頁渲染 ---
@@ -189,7 +132,6 @@ st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 y1_t, y2_t, y3_t = 0, 0, 0
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
-
 for idx, row in enumerate(st.session_state.courses):
     ev = 0
     for s in range(6):
@@ -208,9 +150,9 @@ for idx, row in enumerate(st.session_state.courses):
 
 st.markdown("### 📅 學年實得學分累計")
 sy1, sy2, sy3 = st.columns(3)
-sy1.markdown(f'<div class="year-summary">一年級：{y1_t} 學分</div>', unsafe_allow_html=True)
-sy2.markdown(f'<div class="year-summary">二年級：{y2_t} 學分</div>', unsafe_allow_html=True)
-sy3.markdown(f'<div class="year-summary">三年級：{y3_t} 學分</div>', unsafe_allow_html=True)
+sy1.markdown(f'<div class="year-summary">一年級：{y1_t}</div>', unsafe_allow_html=True)
+sy2.markdown(f'<div class="year-summary">二年級：{y2_t}</div>', unsafe_allow_html=True)
+sy3.markdown(f'<div class="year-summary">三年級：{y3_t}</div>', unsafe_allow_html=True)
 
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
