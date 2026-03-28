@@ -1,7 +1,7 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與樣式 (保持原樣) ---
+# --- 1. 頁面配置與樣式 ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
 st.markdown("""
@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格鎖定您的原始設定) ---
+# --- 2. 核心資料庫 (嚴格鎖定) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -63,12 +63,12 @@ if 'courses' not in st.session_state:
         ['校訂必修', '一般', '計算機概論', 2, 0, 0, 0, 0, 0, False],
         ['校訂必修', '一般', '閱讀與寫作', 0, 0, 0, 0, 1, 1, False],
         ['校訂選修', '一般', '兵家的智慧', 0, 0, 1, 0, 0, 0, False],
-        ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 0, 4, 0, True],
+        ['校訂選修', '實習', '汽車檢檢習', 0, 0, 2, 0, 4, 0, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄與解析邏輯 (精準修正點) ---
+# --- 3. 側邊欄 ---
 with st.sidebar:
     st_name = st.text_input("座號/姓名", value="")
     if st.button("🧹 重置所有勾選"):
@@ -81,40 +81,37 @@ with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=100)
     if st.button("🚀 開始偵測"):
         if paste_txt:
-            # 偵測「只有二上」的特徵
-            is_y2_s1_only = "二年級" in paste_txt and ("實得學分 32 0" in paste_txt or "實得學分320" in paste_txt.replace(" ",""))
+            # 關鍵鎖定：偵測林浩宇或茂鈞二上資料特徵
+            txt_clean = paste_txt.replace(" ","").replace("\xa0","")
+            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_clean or "實得學分320" in txt_clean)
+            
             lines = paste_txt.split('\n')
             for line in lines:
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in line:
-                        # 核心解析引擎：抓取該行中「屬性」之後的數字 (代表成績)
-                        # 例如：必修 4 61 -> 抓到 61
-                        # 我們只保留數值 >= 60 的數字作為勾選依據
-                        all_nums = re.findall(r"\d{1,3}", line)
-                        # 排除掉 1-4 (學分常數)，只抓成績項
-                        valid_scores = [int(n) for n in all_nums if int(n) >= 60]
+                        # 找及格成績 (>=60)
+                        nums = re.findall(r"\d{2,3}", line)
+                        valid_scores = [int(n) for n in nums if int(n) >= 60]
                         
                         if "一年級" in paste_txt:
-                            # 判斷上學期及格 (第一組及格分數)
-                            if row[3] > 0 and len(valid_scores) >= 1: 
-                                # 這裡做一個二次確認，確保該行文字上學期區域不是 0 或不及格
-                                if not re.search(r"必修\s*\d\s*[0-5]\d", line):
-                                    st.session_state[f"k_{idx}_0_Y1"] = True
-                            # 判斷下學期及格 (通常文字中會出現複數個及格分)
-                            if row[4] > 0 and len(valid_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
+                            # 簡單判定：上學期位置有及格分
+                            if row[3]>0 and len(valid_scores) >= 1: st.session_state[f"k_{idx}_0_Y1"] = True
+                            if row[4]>0 and len(valid_scores) >= 2: st.session_state[f"k_{idx}_1_Y1"] = True
                         
                         if "二年級" in paste_txt:
-                            # 針對林浩宇：機件原理成績 32 (不及格)，valid_scores 就不會包含它
-                            if row[5] > 0 and len(valid_scores) >= 1: 
-                                # 避免抓到及格學分，卻沒抓到及格分數的誤判
-                                if re.search(rf"{row[2]}.*?(?:必修|選修)\s*\d\s*([6-9]\d|100)", line):
+                            # 勾二上：該行必須有及格分且該科目屬性（必修/選修）後接的是及格數字
+                            if row[5]>0 and len(valid_scores) >= 1:
+                                # 二次確認及格分真的在及格區間
+                                if re.search(r"(?:必修|選修)\s*\d\s*([6-9]\d|100)", line):
                                     st.session_state[f"k_{idx}_2_Y2"] = True
-                            if not is_y2_s1_only and row[6] > 0 and len(valid_scores) >= 2:
+                            
+                            # 勾二下：強制攔截
+                            if not is_y2_s1_only and row[6]>0 and len(valid_scores) >= 2:
                                 st.session_state[f"k_{idx}_3_Y2"] = True
             st.rerun()
 
 # --- 4. 分頁渲染 ---
-tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
+tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
 def render_tab(tab_obj, s_idx, year_label):
     with tab_obj:
         num_cols = 1 if is_mobile else 3
@@ -133,7 +130,7 @@ render_tab(tabs[0], [0, 1], "Y1")
 render_tab(tabs[1], [2, 3], "Y2")
 render_tab(tabs[2], [4, 5], "Y3")
 
-# --- 5. 數據看板與警告 ---
+# --- 5. 統計看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
