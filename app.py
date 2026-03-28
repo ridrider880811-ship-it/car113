@@ -17,15 +17,17 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業學分檢核系統</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 應修總學分：210</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格依照王茂鈞二上 32 學分科目建立) ---
-if 'courses' not in st.session_state:
+# --- 2. 核心資料庫 (版本 V5：強制重置以修正學分) ---
+VERSION = "V5"
+if 'db_version' not in st.session_state or st.session_state.db_version != VERSION:
+    st.session_state.db_version = VERSION
     st.session_state.courses = [
         # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
         ['部定必修', '一般', '歷史', 2, 0, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '地理', 0, 0, 0, 2, 0, 0, False], 
+        ['部定必修', '一般', '地理', 0, 0, 0, 2, 0, 0, False],
         ['部定必修', '一般', '公民與社會', 0, 0, 0, 0, 2, 0, False],
         ['部定必修', '一般', '物理', 2, 2, 0, 0, 0, 0, False],
         ['部定必修', '一般', '化學', 0, 2, 0, 0, 0, 0, False],
@@ -47,7 +49,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '實習', '機器腳踏車基礎實習', 3, 0, 0, 0, 0, 0, True],
         ['部定必修', '實習', '機器腳踏車檢修實習', 0, 3, 0, 0, 0, 0, True],
         ['部定必修', '實習', '電工電子實習', 0, 0, 3, 0, 0, 0, True],
-        ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True], # 已修正學分
+        ['部定必修', '實習', '基本電學', 0, 0, 2, 2, 0, 0, True], # 修正：回歸二上2學分
         ['部定必修', '實習', '電系實習', 0, 0, 0, 3, 0, 0, True],
         ['部定必修', '實習', '車輛底盤檢修實習', 0, 0, 0, 4, 0, 0, True],
         ['部定必修', '實習', '機械工作法及實習', 0, 4, 0, 0, 3, 3, True],
@@ -68,10 +70,10 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 解析功能 (簡單暴力解析) ---
+# --- 3. 解析功能 (最強力攔截二下邏輯) ---
 with st.sidebar:
     st_name = st.text_input("座號 / 姓名", value="王茂鈞")
-    if st.button("🧹 清空"):
+    if st.button("🧹 重置所有學分"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
@@ -80,28 +82,27 @@ with st.expander("📥 貼上成績文字自動勾選"):
     paste_txt = st.text_area("在此貼上文字：", height=150)
     if st.button("🚀 執行自動勾選"):
         if paste_txt:
-            y1, y2, y3 = "一年級" in paste_txt, "二年級" in paste_txt, "三年級" in paste_txt
-            # 判斷學期：茂鈞提供的文字只有上學期成績，下學期欄位通常接在後面或為空
-            # 我們直接判斷「實得學分 32 0」這種特徵
+            y1, y2 = "一年級" in paste_txt, "二年級" in paste_txt
+            # 偵測是否為「只有二上」的資料
             s2_blocked = "實得學分320" in paste_txt.replace(" ","").replace("\xa0","")
 
             for idx, row in enumerate(st.session_state.courses):
-                subj = row[2][:2] # 抓前兩個字
+                subj = row[2][:2] # 抓取科目名稱前兩個字
                 if subj in paste_txt:
                     if y1:
                         if row[3] > 0: st.session_state[f"k_{idx}_0"] = True
                         if row[4] > 0: st.session_state[f"k_{idx}_1"] = True
                     if y2:
                         if row[5] > 0: st.session_state[f"k_{idx}_2"] = True
-                        # 只有當沒有被攔截器攔住時才勾二下
+                        # 除非確定有下學期學分，否則二下不勾
                         if not s2_blocked and row[6] > 0: 
                             st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
-tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
+tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
-def render(tab, s_idx):
-    with tab:
+def render_year(tab_obj, s_idx):
+    with tab_obj:
         for idx, row in enumerate(st.session_state.courses):
             c1, c2 = row[3+s_idx[0]], row[3+s_idx[1]]
             if c1 > 0 or c2 > 0:
@@ -111,12 +112,13 @@ def render(tab, s_idx):
                 if c1 > 0: cols[0].checkbox(f"上學期及格({c1})", key=k1)
                 if c2 > 0: cols[1].checkbox(f"下學期及格({c2})", key=k2)
 
-render(tabs[0], [0, 1])
-render(tabs[1], [2, 3])
-render(tabs[2], [4, 5])
+render_year(tabs[0], [0, 1])
+render_year(tabs[1], [2, 3])
+render_year(tabs[2], [4, 5])
 
-# --- 4. 統計 ---
+# --- 4. 統計看板 ---
 st.markdown("---")
+st.subheader("📊 畢業門檻達成檢測")
 stats, m1, m2, m3 = [], [], [], []
 for idx, row in enumerate(st.session_state.courses):
     ev = 0
@@ -130,23 +132,37 @@ for idx, row in enumerate(st.session_state.courses):
                 else: m3.append(msg)
     stats.append({'cat': row[0], 'type': row[1], 'val': ev, 'pure': row[9]})
 
-t, d = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
-p, r = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
+total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
+prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
 
 c1, c2, c3, c4 = st.columns(4)
-with c1: st.metric("總學分", f"{t}/160"); st.progress(min(t/160, 1.0))
-with c2: st.metric("部定必修", f"{d}/106.3"); st.progress(min(d/106.3, 1.0))
-with c3: st.metric("專業實習", f"{p}/60"); st.progress(min(p/60, 1.0))
-with c4: st.metric("純實習", f"{r}/30"); st.progress(min(r/30, 1.0))
+with c1:
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    st.metric("總學分", f"{total} / 160"); st.progress(min(total/160, 1.0)); st.markdown('</div>', unsafe_allow_html=True)
+with c2:
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    st.metric("部定必修", f"{dept} / 106.3"); st.progress(min(dept/106.3, 1.0)); st.markdown('</div>', unsafe_allow_html=True)
+with c3:
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    st.metric("專業實習", f"{prof} / 60"); st.progress(min(prof/60, 1.0)); st.markdown('</div>', unsafe_allow_html=True)
+with c4:
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    st.metric("純實習", f"{prac} / 30"); st.progress(min(prac/30, 1.0)); st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 🔍 未取得學分清單")
 cm1, cm2, cm3 = st.columns(3)
 with cm1:
     with st.expander("📅 一年級", expanded=True):
-        for m in m1: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        if m1:
+            for m in m1: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        else: st.write("✅ 已拿滿")
 with cm2:
     with st.expander("📅 二年級", expanded=True):
-        for m in m2: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        if m2:
+            for m in m2: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        else: st.write("✅ 已拿滿")
 with cm3:
     with st.expander("📅 三年級", expanded=True):
-        for m in m3: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        if m3:
+            for m in m3: st.markdown(f'<div class="missing-card">{m}</div>', unsafe_allow_html=True)
+        else: st.write("✅ 未開課")
