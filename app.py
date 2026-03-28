@@ -11,11 +11,11 @@ st.markdown("""
     .metric-card {
         background-color: #ffffff; padding: 15px; border-radius: 12px;
         border-top: 5px solid #1e3799; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-align: center; margin-bottom: 15px;
+        text-align: center; margin-bottom: 15px; min-height: 110px;
     }
     .year-summary {
-        background-color: #f1f5f9; padding: 10px; border-radius: 8px;
-        border-left: 5px solid #1e3799; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 1.1rem;
+        background-color: #f1f5f9; padding: 12px; border-radius: 8px;
+        border-left: 5px solid #1e3799; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 1.2rem;
     }
     .metric-value { font-size: 1.5rem; color: #2c3e50; font-weight: 900; }
     div[data-testid="stCheckbox"] { background-color: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (完整 58 科目) ---
+# --- 2. 核心資料庫 (58科目完整對位) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -84,13 +84,13 @@ with st.sidebar:
         st.rerun()
     is_mobile = st.checkbox("📱 手機版檢視", value=False)
 
-# --- 4. 偵測引擎 (100次驗證無誤版) ---
+# --- 4. 偵測引擎 (絕對座標判斷法) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=120)
     if st.button("🚀 執行檢核"):
         if paste_txt:
             txt_cl = paste_txt.replace(" ","").replace("\xa0","")
-            # 偵測是否為二上結算 (林浩宇特徵)
+            # 偵測結算學分特徵 (鎖死二下)
             is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
             
             lines = paste_txt.split('\n')
@@ -101,29 +101,38 @@ with st.expander("📥 貼上成績文字自動偵測"):
                 for idx, row in enumerate(st.session_state.courses):
                     subj = row[2][:2]
                     if subj in l_raw:
-                        # 找該行所有數字
-                        nums = re.findall(r"\d+", l_raw)
-                        # 過濾出「成績」(排除掉學分1-4，只抓及格分60-100)
-                        pass_scores = [int(n) for n in nums if 60 <= int(n) <= 100]
+                        # 找該科目行中的「必修/選修」
+                        parts = re.split(r'必修|選修', l_raw)
+                        # 正常格式：[科目名, 上學期成績區, 下學期成績區]
                         
                         if "一年級" in paste_txt:
-                            # 林浩宇一上：國語文 60, 英語文 60... (OK)
-                            # 美術 52 (不抓) -> len(pass_scores) 會反應真實狀況
-                            if row[3] > 0 and len(pass_scores) >= 1: st.session_state[f"k_{idx}_0"] = True
-                            if row[4] > 0 and len(pass_scores) >= 2: st.session_state[f"k_{idx}_1"] = True
+                            # 檢查上學期 (parts[1])
+                            if row[3] > 0 and len(parts) > 1:
+                                s1_score = re.findall(r"\d+", parts[1])
+                                # 排除學分數字(第一個數字)，抓成績(第二個數字)
+                                if len(s1_score) >= 2 and int(s1_score[1]) >= 60:
+                                    st.session_state[f"k_{idx}_0"] = True
+                            # 檢查下學期 (parts[2])
+                            if row[4] > 0 and len(parts) > 2:
+                                s2_score = re.findall(r"\d+", parts[2])
+                                if len(s2_score) >= 2 and int(s2_score[1]) >= 60:
+                                    st.session_state[f"k_{idx}_1"] = True
                         
                         if "二年級" in paste_txt:
-                            # 林浩宇二上：底盤實習 74, 電工電子 72... (OK)
-                            # 機件原理 32 (不抓)
-                            if row[5] > 0 and len(pass_scores) >= 1:
-                                st.session_state[f"k_{idx}_2"] = True
-                            # 二下開關鎖死：必須非攔截狀態且有第二組及格成績
-                            if not is_y2_s1_only and row[6] > 0 and len(pass_scores) >= 2:
-                                st.session_state[f"k_{idx}_3"] = True
+                            # 檢查二上 (parts[1])
+                            if row[5] > 0 and len(parts) > 1:
+                                s3_score = re.findall(r"\d+", parts[1])
+                                if len(s3_score) >= 2 and int(s3_score[1]) >= 60:
+                                    st.session_state[f"k_{idx}_2"] = True
+                            # 檢查二下 (parts[2]) - 需過攔截器
+                            if not is_y2_s1_only and row[6] > 0 and len(parts) > 2:
+                                s4_score = re.findall(r"\d+", parts[2])
+                                if len(s4_score) >= 2 and int(s4_score[1]) >= 60:
+                                    st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
 # --- 5. 分頁渲染 ---
-tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
+tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
 def render_tab(tab_obj, s_idx):
     with tab_obj:
         num_cols = 1 if is_mobile else 3
@@ -142,7 +151,7 @@ render_tab(tabs[0], [0, 1])
 render_tab(tabs[1], [2, 3])
 render_tab(tabs[2], [4, 5])
 
-# --- 6. 年度統計與儀表板 (新增學年累計) ---
+# --- 6. 統計看板 (新增學年統計) ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 y1_c, y2_c, y3_c = 0, 0, 0
@@ -165,11 +174,11 @@ for idx, row in enumerate(st.session_state.courses):
                 else: m3.append(msg)
     stats.append({'cat': row[0], 'type': row[1], 'val': ev, 'pure': row[9]})
 
-st.markdown("### 📅 學年實得學分統計 (對照學分總表用)")
+st.markdown("### 📅 學年實得學分 (應對照林浩宇：27, 26, 13)")
 sy1, sy2, sy3 = st.columns(3)
-sy1.markdown(f'<div class="year-summary">一年級：{y1_c} 學分</div>', unsafe_allow_html=True)
-sy2.markdown(f'<div class="year-summary">二年級：{y2_c} 學分</div>', unsafe_allow_html=True)
-sy3.markdown(f'<div class="year-summary">三年級：{y3_c} 學分</div>', unsafe_allow_html=True)
+sy1.markdown(f'<div class="year-summary">一年級累計：{y1_c} 學分</div>', unsafe_allow_html=True)
+sy2.markdown(f'<div class="year-summary">二年級累計：{y2_c} 學分</div>', unsafe_allow_html=True)
+sy3.markdown(f'<div class="year-summary">三年級累計：{y3_t if "y3_t" in locals() else y3_c} 學分</div>', unsafe_allow_html=True)
 
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
@@ -186,14 +195,14 @@ for i, (l, curr, tar) in enumerate(dash):
 st.markdown("### 🔍 缺修科目細節")
 cm1, cm2, cm3 = st.columns(3)
 with cm1:
-    with st.expander("高一未及格", False):
+    with st.expander("高一缺修", False):
         if m1: [st.markdown(f'<div class="missing-card">❌ {x}</div>', unsafe_allow_html=True) for x in m1]
         else: st.success("全過")
 with cm2:
-    with st.expander("高二未及格", False):
+    with st.expander("高二缺修", False):
         if m2: [st.markdown(f'<div class="missing-card">❌ {x}</div>', unsafe_allow_html=True) for x in m2]
         else: st.success("全過")
 with cm3:
-    with st.expander("高三未勾選", False):
+    with st.expander("高三預計", False):
         if m3: [st.markdown(f'<div class="missing-card">⚠️ {x}</div>', unsafe_allow_html=True) for x in m3]
         else: st.success("預計全過")
