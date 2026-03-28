@@ -1,7 +1,7 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與樣式 ---
+# --- 1. 頁面配置 ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
 st.markdown("""
@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格依照正確課綱，括號已閉合) ---
+# --- 2. 核心資料庫 (二下無基本電學，括號完全閉合) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -71,35 +71,44 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄 ---
+# --- 3. 側邊欄 (座號姓名回歸) ---
 with st.sidebar:
-    if st.button("🧹 徹底重置資料"):
+    st.markdown("### 📋 學生基本資料")
+    st_name = st.text_input("座號 / 姓名", value="", placeholder="例如：15號 林浩宇")
+    if st.button("🧹 徹底重置所有勾選"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
-    is_mobile = st.checkbox("📱 手機版檢視", value=False)
+    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
 
-# --- 4. 偵測引擎 (絕對解析邏輯) ---
+# --- 4. 偵測引擎 (林浩宇數據鋼鐵攔截) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=120)
-    if st.button("🚀 執行檢核"):
+    if st.button("🚀 執行精準分析"):
         if paste_txt:
-            clean_txt = paste_txt.replace(" ","").replace("\xa0","")
-            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in clean_txt or "實得學分320" in clean_txt)
+            txt_cl = paste_txt.replace(" ","").replace("\xa0","")
+            # 零值攔截特徵 (13 0 或 32 0)
+            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
+            
             lines = paste_txt.split('\n')
             for line in lines:
                 l_raw = line.replace(" ","").replace("\xa0","")
                 if not l_raw: continue
+                
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in l_raw:
+                        # 依照「必修/選修」切開區塊
                         parts = re.split(r'必修|選修', l_raw)
-                        # 處理上學期
+                        
+                        # 處理第一學期 (零件 1)
                         if len(parts) > 1:
+                            # 規則：跳過學分(第1位)，抓成績(第2位起)
                             score_m = re.search(r'^\d(\d{1,3})', parts[1])
                             if score_m and int(score_m.group(1)) >= 60:
                                 if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
                                 if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
-                        # 處理下學期
+                        
+                        # 處理第二學期 (零件 2) - 過攔截器
                         if not is_y2_s1_only and len(parts) > 2:
                             score_m_down = re.search(r'^\d(\d{1,3})', parts[2])
                             if score_m_down and int(score_m_down.group(1)) >= 60:
@@ -108,7 +117,7 @@ with st.expander("📥 貼上成績文字自動偵測"):
             st.rerun()
 
 # --- 5. 分頁渲染 ---
-tabs = st.tabs(["📅 高一", "📅 高二", "📅 高三"])
+tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 def render_tab(tab_obj, s_idx):
     with tab_obj:
         num_cols = 1 if is_mobile else 3
@@ -127,20 +136,22 @@ render_tab(tabs[0], [0, 1])
 render_tab(tabs[1], [2, 3])
 render_tab(tabs[2], [4, 5])
 
-# --- 6. 統計數據看板 ---
+# --- 6. 統計儀表板 (新增學年統計與門檻看板) ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 y1_t, y2_t, y3_t = 0, 0, 0
 sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
+
 for idx, row in enumerate(st.session_state.courses):
     ev = 0
     for s in range(6):
         if row[3+s] > 0:
             if st.session_state.get(f"k_{idx}_{s}", False):
-                ev += row[3+s]
-                if s < 2: y1_t += row[3+s]
-                elif s < 4: y2_t += row[3+s]
-                else: y3_t += row[3+s]
+                credit = row[3+s]
+                ev += credit
+                if s < 2: y1_t += credit
+                elif s < 4: y2_t += credit
+                else: y3_t += credit
             else:
                 msg = f"{row[2]}({sem_names[s]})"
                 if s < 2: m1.append(msg)
@@ -150,9 +161,9 @@ for idx, row in enumerate(st.session_state.courses):
 
 st.markdown("### 📅 學年實得學分累計")
 sy1, sy2, sy3 = st.columns(3)
-sy1.markdown(f'<div class="year-summary">一年級：{y1_t}</div>', unsafe_allow_html=True)
-sy2.markdown(f'<div class="year-summary">二年級：{y2_t}</div>', unsafe_allow_html=True)
-sy3.markdown(f'<div class="year-summary">三年級：{y3_t}</div>', unsafe_allow_html=True)
+sy1.markdown(f'<div class="year-summary">一年級：{y1_t} 學分</div>', unsafe_allow_html=True)
+sy2.markdown(f'<div class="year-summary">二年級：{y2_t} 學分</div>', unsafe_allow_html=True)
+sy3.markdown(f'<div class="year-summary">三年級：{y3_t} 學分</div>', unsafe_allow_html=True)
 
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
