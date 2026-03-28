@@ -1,7 +1,7 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置 ---
+# --- 1. 頁面配置與樣式 ---
 st.set_page_config(page_title="汽車科學分檢核 Pro", layout="wide")
 
 st.markdown("""
@@ -27,7 +27,7 @@ st.markdown("""
 st.markdown('<p class="main-title">🚗 汽車科畢業檢核系統 Pro</p>', unsafe_allow_html=True)
 st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱精確對位版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (二下無基本電學，括號完全閉合) ---
+# --- 2. 核心資料庫 (58科目完整版，二下無基本電學) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -71,24 +71,23 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. 側邊欄 (座號姓名回歸) ---
+# --- 3. 側邊欄 ---
 with st.sidebar:
     st.markdown("### 📋 學生基本資料")
     st_name = st.text_input("座號 / 姓名", value="", placeholder="例如：15號 林浩宇")
-    if st.button("🧹 徹底重置所有勾選"):
+    if st.button("🧹 徹底重置資料"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
-    is_mobile = st.checkbox("📱 手機版檢視(單欄)", value=False)
+    is_mobile = st.checkbox("📱 手機版檢視", value=False)
 
-# --- 4. 偵測引擎 (林浩宇數據鋼鐵攔截) ---
+# --- 4. 偵測引擎 (絕對穩定版) ---
 with st.expander("📥 貼上成績文字自動偵測"):
     paste_txt = st.text_area("在此貼上內容：", height=120)
     if st.button("🚀 執行精準分析"):
         if paste_txt:
-            txt_cl = paste_txt.replace(" ","").replace("\xa0","")
-            # 零值攔截特徵 (13 0 或 32 0)
-            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in txt_cl or "實得學分320" in txt_cl)
+            clean_txt = paste_txt.replace(" ","").replace("\xa0","")
+            is_y2_s1_only = "二年級" in paste_txt and ("實得學分130" in clean_txt or "實得學分320" in clean_txt)
             
             lines = paste_txt.split('\n')
             for line in lines:
@@ -97,26 +96,29 @@ with st.expander("📥 貼上成績文字自動偵測"):
                 
                 for idx, row in enumerate(st.session_state.courses):
                     if row[2][:2] in l_raw:
-                        # 依照「必修/選修」切開區塊
+                        # 分段解析：必修、選修
                         parts = re.split(r'必修|選修', l_raw)
                         
-                        # 處理第一學期 (零件 1)
+                        # 第一學期偵測
                         if len(parts) > 1:
-                            # 規則：跳過學分(第1位)，抓成績(第2位起)
                             score_m = re.search(r'^\d(\d{1,3})', parts[1])
-                            if score_m and int(score_m.group(1)) >= 60:
-                                if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
-                                if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
+                            if score_m:
+                                s_val = int(score_m.group(1))
+                                if s_val >= 60:
+                                    if "一年級" in paste_txt and row[3] > 0: st.session_state[f"k_{idx}_0"] = True
+                                    if "二年級" in paste_txt and row[5] > 0: st.session_state[f"k_{idx}_2"] = True
                         
-                        # 處理第二學期 (零件 2) - 過攔截器
+                        # 第二學期偵測 (過濾二下)
                         if not is_y2_s1_only and len(parts) > 2:
-                            score_m_down = re.search(r'^\d(\d{1,3})', parts[2])
-                            if score_m_down and int(score_m_down.group(1)) >= 60:
-                                if "一年級" in paste_txt and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
-                                if "二年級" in paste_txt and row[6] > 0: st.session_state[f"k_{idx}_3"] = True
+                            score_m2 = re.search(r'^\d(\d{1,3})', parts[2])
+                            if score_m2:
+                                s_val2 = int(score_m2.group(1))
+                                if s_val2 >= 60:
+                                    if "一年級" in paste_txt and row[4] > 0: st.session_state[f"k_{idx}_1"] = True
+                                    if "二年級" in paste_txt and row[6] > 0: st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
-# --- 5. 分頁渲染 ---
+# --- 5. 分頁渲染 (Key 絕對對齊) ---
 tabs = st.tabs(["📅 高一階段", "📅 高二階段", "📅 高三階段"])
 def render_tab(tab_obj, s_idx):
     with tab_obj:
@@ -129,6 +131,7 @@ def render_tab(tab_obj, s_idx):
                 st.markdown(f'<div class="course-card">{row[2]}</div>', unsafe_allow_html=True)
                 c1, c2 = row[3+s_idx[0]], row[3+s_idx[1]]
                 sub_cols = st.columns(2)
+                # 這裡統一 key 格式：k_{原始索引}_{學期索引}
                 if c1 > 0: sub_cols[0].checkbox(f"上({c1})", key=f"k_{orig_idx}_{s_idx[0]}")
                 if c2 > 0: sub_cols[1].checkbox(f"下({c2})", key=f"k_{orig_idx}_{s_idx[1]}")
 
@@ -136,7 +139,7 @@ render_tab(tabs[0], [0, 1])
 render_tab(tabs[1], [2, 3])
 render_tab(tabs[2], [4, 5])
 
-# --- 6. 統計儀表板 (新增學年統計與門檻看板) ---
+# --- 6. 統計數據看板 ---
 st.markdown("---")
 stats, m1, m2, m3 = [], [], [], []
 y1_t, y2_t, y3_t = 0, 0, 0
@@ -169,7 +172,7 @@ total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['ca
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
 
 d_cols = st.columns(4)
-dash = [("🟢 總及格", total, 160), ("🔵 部定必修", dept, 106.3), ("🟠 專業實習", prof, 60), ("🔴 純實習學分", prac, 30)]
+dash = [("🟢 總及格", total, 160), ("🔵 部定必修", dept, 106.3), ("🟠 專業實習", prof, 60), ("🔴 純實習", prac, 30)]
 for i, (l, curr, tar) in enumerate(dash):
     diff = tar - curr
     diff_html = f'<span style="color:red; font-size:0.8rem;">缺{diff:.1f}</span>' if diff > 0 else '<span style="color:green; font-size:0.8rem;">達標</span>'
