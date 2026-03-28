@@ -3,29 +3,43 @@ import cv2
 import numpy as np
 import easyocr
 from PIL import Image
+import re
 
-# 1. 頁面配置
-st.set_page_config(page_title="汽車科學分檢核系統", layout="centered")
+# --- 1. 頁面基礎配置 ---
+st.set_page_config(page_title="汽車科學分檢核系統", layout="wide")
 
-# CSS 樣式：手機版優化 + 橘色可愛風進度條
+# --- 2. 高階 RWD 排版 CSS ---
 st.markdown("""
     <style>
-    .title-text { font-size: 24px !important; font-weight: bold; text-align: center; white-space: nowrap; }
-    .sub-title-text { font-size: 16px !important; color: #555; text-align: center; margin-top: -5px; margin-bottom: 10px; }
-    .stCheckbox { margin-bottom: 5px; }
-    .main .block-container { padding-top: 1rem; padding-left: 0.5rem; padding-right: 0.5rem; }
-    .stProgress > div > div > div > div { background-color: #ff9f43; }
-    @media (max-width: 640px) { .title-text { font-size: 20px !important; } }
+    /* 全域字體優化 */
+    html, body, [class*="css"] { font-family: "Microsoft JhengHei", sans-serif; }
+    
+    /* 標題排版 */
+    .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; color: #2c3e50; margin-bottom: 0px; }
+    .sub-title { font-size: 1.1rem; text-align: center; color: #7f8c8d; margin-bottom: 20px; }
+    
+    /* 進度條橘色美化 */
+    .stProgress > div > div > div > div { background-color: #ff9f43; border-radius: 10px; }
+    
+    /* 手機版適應 (螢幕寬度小於 768px) */
+    @media (max-width: 768px) {
+        .main-title { font-size: 1.5rem; }
+        .stCheckbox { font-size: 0.8rem; margin-bottom: 2px !important; }
+        .block-container { padding: 0.5rem !important; }
+        div[data-testid="column"] { width: 48% !important; flex: 1 1 45% !important; min-width: 45% !important; }
+    }
+    
+    /* 卡片式外觀 */
+    .course-card { background-color: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 4px solid #3498db; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown('<p class="title-text">🚗 汽車科學分檢核系統</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title-text">(加油，一定能順利畢業的！)</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">🚗 汽車科學分檢核系統</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">114 級汽車二甲專屬 (方案 B：雙軌校準版)</p>', unsafe_allow_html=True)
 st.caption("製作人：羅章成老師")
 st.write("---")
 
-# 2. 原始科目資料庫 (精確 48 門科目)
-sem_names = ["一上", "一下", "二上", "二下", "三上", "三下"]
+# --- 3. 核心資料庫 (48 門科目) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
@@ -37,8 +51,7 @@ if 'courses' not in st.session_state:
         ['部定必修', '一般', '法律與生活', 0, 0, 0, 0, 0, 2, False],
         ['部定必修', '一般', '物理', 2, 2, 0, 0, 0, 0, False],
         ['部定必修', '一般', '化學', 0, 2, 0, 0, 0, 0, False],
-        ['部定必修', '一般', '音樂', 0, 0, 1, 1, 0, 0, False],
-        ['部定必修', '一般', '美術', 2, 0, 0, 0, 0, 0, False],
+        ['部定必修', '一般', '藝術(音樂/美術)', 2, 2, 0, 0, 0, 0, False],
         ['部定必修', '一般', '資訊科技', 0, 2, 0, 0, 0, 0, False],
         ['部定必修', '一般', '健康與護理', 2, 0, 0, 0, 0, 0, False],
         ['部定必修', '一般', '體育', 2, 2, 2, 2, 2, 2, False],
@@ -75,115 +88,103 @@ if 'courses' not in st.session_state:
         ['校訂選修', '專業', '交通安全與法規', 0, 0, 0, 0, 1, 0, False],
         ['校訂選修', '專業', '汽車新式裝備', 0, 0, 0, 0, 0, 1, False],
         ['校訂選修', '專業', '先進車輛電控概論', 0, 0, 0, 0, 0, 3, False],
-        ['校訂選修', '實習', '汽車檢驗實習', 0, 0, 2, 2, 0, 0, True],
-        ['校訂選修', '實習', '車輛儀器檢修實務', 0, 0, 0, 0, 3, 0, True],
         ['校訂選修', '實習', '車輛微電腦控制實習', 0, 0, 2, 2, 0, 0, True],
-        ['校訂選修', '實習', '汽車美容實務', 0, 0, 0, 0, 0, 3, True],
-        ['校訂選修', '實習', '汽車定期保養實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '車輪定位檢修實習', 0, 0, 0, 0, 0, 4, True],
-        ['校訂選修', '實習', '噴射引擎實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車塗裝實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '柴油引擎實習', 0, 0, 0, 0, 4, 0, True],
-        ['校訂選修', '實習', '汽車綜合實習', 0, 0, 0, 0, 4, 0, True],
     ]
 
-# 3. 側邊欄 AI 辨識
-st.sidebar.header("📸 AI 學分辨識")
-uploaded_file = st.sidebar.file_uploader("上傳成績截圖", type=["png", "jpg", "jpeg"])
+# --- 4. 側邊欄：雙軌功能區 ---
+st.sidebar.header("📁 資料導入系統")
 
-if uploaded_file:
-    if 'processed_file' not in st.session_state or st.session_state.processed_file != uploaded_file.name:
-        with st.spinner('辨識中...'):
-            img = Image.open(uploaded_file)
+# A. 截圖 AI 辨識
+up_img = st.sidebar.file_uploader("📸 方式1：上傳成績截圖", type=["png", "jpg", "jpeg"])
+if up_img:
+    if 'last_img' not in st.session_state or st.session_state.last_img != up_img.name:
+        with st.spinner('AI 辨識中...'):
             reader = easyocr.Reader(['ch_tra', 'en'])
-            result = reader.readtext(np.array(img))
-            raw_text = "".join([res[1] for res in result])
-            
-            # 精確比對邏輯
+            result = reader.readtext(np.array(Image.open(up_img)))
+            raw_txt = "".join([res[1] for res in result])
             for idx, row in enumerate(st.session_state.courses):
-                subj = row[2]
-                if subj in raw_text:
-                    for s in range(6):
-                        if row[3+s] > 0:
-                            st.session_state[f"k_{idx}_{s}"] = True
-            st.session_state.processed_file = uploaded_file.name
+                if row[2][:2] in raw_txt:
+                    for s in range(6): 
+                        if row[3+s] > 0: st.session_state[f"k_{idx}_{s}"] = True
+            st.session_state.last_img = up_img.name
             st.rerun()
 
-seat_num = st.sidebar.text_input("座號", "01")
-student_name = st.sidebar.text_input("姓名", "學生姓名")
-if st.sidebar.button("🧹 清空"):
+# B. 文字複製貼上
+st.sidebar.markdown("---")
+paste_txt = st.sidebar.text_area("📋 方式2：全選貼上成績文字", height=150, placeholder="登入系統全選後在此貼上")
+if st.sidebar.button("🚀 開始文字解析"):
+    if paste_txt:
+        for idx, row in enumerate(st.session_state.courses):
+            if row[2][:2] in paste_txt:
+                for s in range(6): 
+                    if row[3+s] > 0: st.session_state[f"k_{idx}_{s}"] = True
+        st.sidebar.success("解析完成！")
+        st.rerun()
+
+if st.sidebar.button("🧹 一鍵重置所有學分"):
     for k in list(st.session_state.keys()):
         if k.startswith("k_"): st.session_state[k] = False
     st.rerun()
 
-# 4. 介面呈現
-st.write("### 📖 學分勾選區")
-tabs = st.tabs(["高一", "高二", "高三"])
+seat_num = st.sidebar.text_input("座號", "01")
+std_name = st.sidebar.text_input("姓名", "王大明")
 
-def draw_tab(tab_obj, s_indices):
+# --- 5. 主內容區：勾選介面 ---
+tabs = st.tabs(["一年級", "二年級", "三年級"])
+sem_labels = ["一上", "一下", "二上", "二下", "三上", "三下"]
+
+def render_courses(tab_obj, s_idx):
     with tab_obj:
         for idx, row in enumerate(st.session_state.courses):
-            c1, c2 = row[3+s_indices[0]], row[3+s_indices[1]]
+            c1, c2 = row[3+s_idx[0]], row[3+s_idx[1]]
             if c1 > 0 or c2 > 0:
-                st.markdown(f"**{row[2]}**")
+                st.markdown(f'<div class="course-card"><b>{row[2]}</b></div>', unsafe_allow_html=True)
                 cols = st.columns(2)
-                k1, k2 = f"k_{idx}_{s_indices[0]}", f"k_{idx}_{s_indices[1]}"
+                k1, k2 = f"k_{idx}_{s_idx[0]}", f"k_{idx}_{s_idx[1]}"
                 if k1 not in st.session_state: st.session_state[k1] = False
                 if k2 not in st.session_state: st.session_state[k2] = False
-                
-                if c1 > 0: cols[0].checkbox(f"上 ({c1})", key=k1)
-                if c2 > 0: cols[1].checkbox(f"下 ({c2})", key=k2)
-                st.write("---")
+                if c1 > 0: cols[0].checkbox(f"上({c1}學分)", key=k1)
+                if c2 > 0: cols[1].checkbox(f"下({c2}學分)", key=k2)
 
-draw_tab(tabs[0], [0, 1])
-draw_tab(tabs[1], [2, 3])
-draw_tab(tabs[2], [4, 5])
+render_courses(tabs[0], [0, 1])
+render_courses(tabs[1], [2, 3])
+render_courses(tabs[2], [4, 5])
 
-# 5. 計算指標 (修正計算 Bug)
+# --- 6. 計算與視覺化指標 ---
 st.markdown("---")
-st.subheader(f"📊 {seat_num}號 {student_name} 畢業檢核")
+st.subheader(f"📊 {seat_num}號 {std_name} 畢業戰報")
 
-earned_list = []
-missing_items = { "一": [], "二": [], "三": [] }
-
+stats = []
 for idx, row in enumerate(st.session_state.courses):
-    earned_val = 0
+    earned = 0
     for s in range(6):
-        c_v = row[3+s]
-        if c_v > 0:
-            if st.session_state.get(f"k_{idx}_{s}", False):
-                earned_val += c_v
-            else:
-                y = "一" if s < 2 else ("二" if s < 4 else "三")
-                missing_items[y].append(f"{sem_names[s]} {row[2]} ({c_v})")
-    earned_list.append({'cat': row[0], 'type': row[1], 'val': earned_val, 'is_pure': row[9]})
+        if st.session_state.get(f"k_{idx}_{s}", False): earned += row[3+s]
+    stats.append({'cat': row[0], 'type': row[1], 'val': earned, 'pure': row[9]})
 
-t_sum = sum(e['val'] for e in earned_list)
-d_sum = sum(e['val'] for e in earned_list if e['cat'] == '部定必修')
-p_sum = sum(e['val'] for e in earned_list if e['type'] in ['專業', '實習'])
-s_sum = sum(e['val'] for e in earned_list if e['is_pure'])
+t_all = sum(s['val'] for s in stats)
+d_all = sum(s['val'] for s in stats if s['cat'] == '部定必修')
+p_all = sum(s['val'] for s in stats if s['type'] in ['專業', '實習'])
+s_all = sum(s['val'] for s in stats if s['pure'])
 
-def bar(title, now, target):
-    st.write(f"**{title}**")
-    color = "#27ae60" if now >= target else "#e74c3c"
-    st.markdown(f"<h3 style='color:{color}; margin:0;'>{now} / {target}</h3>", unsafe_allow_html=True)
-    st.progress(min(now/target, 1.0))
+col1, col2 = st.columns([1, 1])
 
-bar("1. 總學分數 (>=160)", t_sum, 160)
-bar("2. 部定必修 (>=106.3)", d_sum, 106.3)
-bar("3. 專業科目及實習科目 (>=60)", p_sum, 60)
-bar("4. 純實習科目 (>=30)", s_sum, 30)
+def draw_metric(col, label, now, goal):
+    col.write(f"**{label}**")
+    clr = "#27ae60" if now >= goal else "#e74c3c"
+    col.markdown(f"<h3 style='color:{clr}; margin:0;'>{now} / {goal}</h3>", unsafe_allow_html=True)
+    col.progress(min(now/goal, 1.0))
 
-st.write("---")
-st.write("### ❌ 待修明細")
-for y, items in missing_items.items():
-    with st.expander(f"{y}年級 (剩 {len(items)} 門)", expanded=False):
-        if not items: st.success("全過！")
-        else:
-            for i in items: st.write(f"• {i}")
+with col1:
+    draw_metric(st, "1. 總學分 (>=160)", t_all, 160)
+    draw_metric(st, "2. 部定必修 (>=106.3)", d_all, 106.3)
 
-st.write("---")
-st.write("本系統製作人：羅章成老師")
+with col2:
+    draw_metric(st, "3. 專業及實習 (>=60)", p_all, 60)
+    draw_metric(st, "4. 純實習 (>=30)", s_all, 30)
 
-if t_sum >= 160 and d_sum >= 106.3 and p_sum >= 60 and s_sum >= 30:
-    st.balloons(); st.success("🏁 准予畢業！")
+# 最終判定
+if t_all >= 160 and d_all >= 106.3 and p_all >= 60 and s_all >= 30:
+    st.balloons()
+    st.success("🎓 畢業條件已完全達成！恭喜！")
+else:
+    st.warning("⚠️ 目前條件尚未齊全，請繼續努力！")
