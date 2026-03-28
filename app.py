@@ -1,40 +1,38 @@
 import streamlit as st
 import re
 
-# --- 1. 頁面配置與進階樣式 ---
+# --- 1. 頁面配置與進階樣式 (美化 Dashboard) ---
 st.set_page_config(page_title="汽車科畢業學分檢核", layout="wide")
 
 st.markdown("""
     <style>
     html, body, [class*="css"] { font-family: "Microsoft JhengHei", sans-serif; }
-    .main-title { font-size: 2.5rem; font-weight: 800; text-align: center; color: #1e3799; margin-bottom: 5px; }
-    .stProgress > div > div > div > div { background-color: #38ada9; border-radius: 10px; }
+    .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; color: #1e3799; margin-bottom: 5px; }
     
-    /* 課程卡片樣式 */
-    .course-card { background-color: #ffffff; padding: 10px; border-radius: 8px; border-left: 6px solid #4a69bd; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); margin-top: 10px; font-weight: bold; }
-    
-    /* 畢業門檻儀表板樣式 */
+    /* 畢業門檻儀表板卡片 */
     .metric-card {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 15px;
+        padding: 15px;
+        border-radius: 12px;
         border-top: 5px solid #1e3799;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         text-align: center;
+        margin-bottom: 10px;
     }
-    .metric-label { font-size: 1rem; color: #576574; font-weight: bold; margin-bottom: 10px; }
-    .metric-value { font-size: 1.8rem; color: #2c3e50; font-weight: 900; }
-    .missing-card { color: #eb2f06; background-color: #ffeef0; padding: 8px; border-radius: 6px; margin-bottom: 5px; border-left: 4px solid #eb2f06; font-size: 0.9rem; }
+    .metric-label { font-size: 0.9rem; color: #576574; font-weight: bold; }
+    .metric-value { font-size: 1.5rem; color: #2c3e50; font-weight: 900; margin: 5px 0; }
+    
+    .course-card { background-color: #ffffff; padding: 8px; border-radius: 8px; border-left: 5px solid #4a69bd; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); margin-top: 8px; font-weight: bold; font-size: 0.95rem; }
+    .missing-card { color: #eb2f06; background-color: #ffeef0; padding: 6px; border-radius: 5px; margin-bottom: 4px; border-left: 4px solid #eb2f06; font-size: 0.85rem; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown('<p class="main-title">🚗 汽車科畢業學分檢核系統</p>', unsafe_allow_html=True)
-st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 應修總學分：210 | 113課綱專用版</div>", unsafe_allow_html=True)
+st.markdown('<p class="main-title">🚗 畢業學分檢核系統</p>', unsafe_allow_html=True)
+st.caption("<div style='text-align:center;'>製作人：羅章成老師 | 113課綱標準版</div>", unsafe_allow_html=True)
 
-# --- 2. 核心資料庫 (嚴格鎖定學分配置) ---
+# --- 2. 核心資料庫 (嚴格鎖定科目) ---
 if 'courses' not in st.session_state:
     st.session_state.courses = [
-        # [類別, 屬性, 科目名稱, 一上, 一下, 二上, 二下, 三上, 三下, 是否純實習]
         ['部定必修', '一般', '國語文', 3, 3, 3, 3, 2, 2, False],
         ['部定必修', '一般', '英語文', 2, 2, 2, 2, 2, 2, False],
         ['部定必修', '一般', '數學 (部定)', 4, 4, 0, 0, 0, 0, False],
@@ -73,38 +71,46 @@ if 'courses' not in st.session_state:
         ['校訂選修', '一般', '原住民族語課程', 0, 0, 2, 2, 2, 2, False],
     ]
 
-# --- 3. UI 與功能 ---
+# --- 3. UI 與解析功能 ---
 with st.sidebar:
     st_name = st.text_input("座號 / 姓名", value="王茂鈞")
-    if st.button("🧹 重新檢測 (清空所有)"):
+    if st.button("🧹 重新檢測 (清空勾選)"):
         for k in list(st.session_state.keys()):
             if k.startswith("k_"): st.session_state[k] = False
         st.rerun()
 
-with st.expander("📥 貼上歷年成績文字 (精準防誤勾分析)"):
-    paste_txt = st.text_area("請在此貼上學生成績單：", height=150)
-    if st.button("🚀 執行自動分析"):
+with st.expander("📥 第一步：貼上成績文字自動解析"):
+    paste_txt = st.text_area("請在此貼上歷年成績文字：", height=150)
+    if st.button("🚀 開始偵測學分"):
         if paste_txt:
-            # 偵測關鍵字：若實得學分出現 "32 0" 代表下學期沒學分，強制鎖死二下
-            is_y2_only = "二年級" in paste_txt and "實得學分320" in paste_txt.replace(" ","").replace("\xa0","")
+            # 處理特殊空格：將所有種類的空白字元都轉為標準空格
+            clean_full_txt = re.sub(r'\s+', ' ', paste_txt)
+            
+            # 偵測「只有二上」的特徵：實得學分 32 後面跟著 0
+            is_y2_s1_only = "二年級" in clean_full_txt and "實得學分 32 0" in clean_full_txt
             
             lines = paste_txt.split('\n')
             for line in lines:
-                clean = line.replace(" ", "")
+                # 移除行內雜訊以便比對
+                clean_line = line.replace(" ", "").replace("\xa0", "")
                 for idx, row in enumerate(st.session_state.courses):
-                    if row[2][:2] in clean:
-                        # 搜尋該行中所有的 40-100 分成績數字
-                        scores = re.findall(r"(?<!\d)(?:[4-9]\d|100)(?!\d)", clean)
+                    if row[2][:2] in clean_line:
+                        # 算這一行出現了幾個「40-100」之間的數字
+                        # 茂鈞的二上文字：必修285必修85 -> 會有兩個分數
+                        scores = re.findall(r"(?<!\d)(?:[4-9]\d|100)(?!\d)", clean_line)
                         
                         if "一年級" in paste_txt:
                             if row[3]>0: st.session_state[f"k_{idx}_0"] = True
+                            # 一年級如果整年讀完，一行會有 3 個分數（上、下、學年）
                             if row[4]>0 and len(scores) >= 2: st.session_state[f"k_{idx}_1"] = True
                         
                         if "二年級" in paste_txt:
                             # 勾選二上
                             if row[5]>0: st.session_state[f"k_{idx}_2"] = True
-                            # 只有在非「只有二上」且該行有兩組成績時，才勾二下
-                            if not is_y2_only and row[6]>0 and len(scores) >= 2:
+                            # 嚴格勾選二下：
+                            # 1. 不能符合「二上專用資料」特徵
+                            # 2. 該行分數數量必須足夠（通常有三組分數才代表上下學期都及格）
+                            if not is_y2_s1_only and row[6]>0 and len(scores) >= 3:
                                 st.session_state[f"k_{idx}_3"] = True
             st.rerun()
 
@@ -117,14 +123,15 @@ def render_year(tab_obj, s_idx):
             if c1 > 0 or c2 > 0:
                 st.markdown(f'<div class="course-card">{row[2]}</div>', unsafe_allow_html=True)
                 cols = st.columns(2)
-                if c1 > 0: cols[0].checkbox(f"上及格({c1})", key=f"k_{idx}_{s_idx[0]}")
-                if c2 > 0: cols[1].checkbox(f"下及格({c2})", key=f"k_{idx}_{s_idx[1]}")
+                k1, k2 = f"k_{idx}_{s_idx[0]}", f"k_{idx}_{s_idx[1]}"
+                if c1 > 0: cols[0].checkbox(f"上及格({c1})", key=k1)
+                if c2 > 0: cols[1].checkbox(f"下及格({c2})", key=k2)
 
 render_year(tabs[0], [0, 1])
 render_year(tabs[1], [2, 3])
 render_year(tabs[2], [4, 5])
 
-# --- 4. 畢業門檻儀表板 (Dashboard) ---
+# --- 4. 畢業門檻達成看板 ---
 st.markdown("---")
 st.subheader("📊 畢業資格達成檢測")
 
@@ -144,26 +151,17 @@ for idx, row in enumerate(st.session_state.courses):
 total, dept = sum(x['val'] for x in stats), sum(x['val'] for x in stats if x['cat'] == '部定必修')
 prof, prac = sum(x['val'] for x in stats if x['type'] in ['專業', '實習']), sum(x['val'] for x in stats if x['pure'])
 
-# 使用 HTML 建立自訂的儀表板卡片，避免跑版
-dash_cols = st.columns(4)
-dashboard_items = [
-    ("總學分 (>=160)", f"{total} / 160", total/160),
-    ("部定必修 (>=106.3)", f"{dept} / 106.3", dept/106.3),
-    ("專業及實習 (>=60)", f"{prof} / 60", prof/60),
-    ("純實習 (>=30)", f"{prac} / 30", prac/30)
-]
+d_cols = st.columns(4)
+items = [("總學分 (>=160)", f"{total}/160", total/160), 
+         ("部定必修 (>=106.3)", f"{dept}/106.3", dept/106.3),
+         ("專業及實習 (>=60)", f"{prof}/60", prof/60),
+         ("純實習 (>=30)", f"{prac}/30", prac/30)]
 
-for i, (label, val, prog) in enumerate(dashboard_items):
-    with dash_cols[i]:
-        st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">{label}</div>
-                <div class="metric-value">{val}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        st.progress(min(prog, 1.0))
+for i, (l, v, p) in enumerate(items):
+    with d_cols[i]:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">{l}</div><div class="metric-value">{v}</div></div>', unsafe_allow_html=True)
+        st.progress(min(p, 1.0))
 
-# --- 5. 缺修科目清單 ---
 st.markdown("### 🔍 未取得學分清單")
 c_m1, c_m2, c_m3 = st.columns(3)
 with c_m1:
